@@ -3,7 +3,7 @@ const Campaign = require('../models/Campaign');
 const Application = require('../models/Application');
 const Submission = require('../models/Submission');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../constants');
-const { withTransaction } = require('../utils/withTransaction');
+const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
 
 class CampaignService {

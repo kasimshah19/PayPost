@@ -5,6 +5,7 @@ import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import MoneyText from '../components/MoneyText';
 import ConfirmModal from '../components/ConfirmModal';
+import ApplicationList from '../components/ApplicationList';
 import { formatDateIST } from '../utils/date';
 
 function CampaignDetail() {
@@ -127,11 +128,9 @@ function CampaignDetail() {
 
       <div className="grid md:grid-cols-2 gap-8">
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-bold mb-4">Applicants (coming in Phase 4)</h2>
+          <h2 className="text-xl font-bold mb-4">Applicants</h2>
           <p className="text-gray-600 mb-4">Total Applied: {campaign.applicantCounts?.applied || 0}</p>
-          <div className="p-4 bg-gray-50 border border-dashed rounded text-center text-gray-500">
-            Applications list placeholder
-          </div>
+          <ApplicationList campaignId={id} onStatusChange={fetchCampaign} />
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">

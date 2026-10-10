@@ -5,6 +5,8 @@ import CampaignCard from '../components/CampaignCard';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 
+import CreatorApplicationList from '../components/CreatorApplicationList';
+
 function CreatorDashboard() {
   const { user } = useContext(AuthContext);
   const [campaigns, setCampaigns] = useState([]);
@@ -52,10 +54,8 @@ function CreatorDashboard() {
         
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-xl font-bold mb-4">My Applications (Phase 4)</h2>
-            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
-              Applications placeholder
-            </div>
+            <h2 className="text-xl font-bold mb-4">My Applications</h2>
+            <CreatorApplicationList />
           </div>
           
           <div className="bg-white rounded-lg shadow-sm border p-6">
