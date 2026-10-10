@@ -1,0 +1,28 @@
+const ROLES = Object.freeze({ BRAND: 'brand', CREATOR: 'creator' });
+const CAMPAIGN_STATUS = Object.freeze({ ACTIVE: 'active', CANCELLED: 'cancelled', COMPLETED: 'completed' });
+const APPLICATION_STATUS = Object.freeze({
+  APPLIED: 'applied', APPROVED: 'approved', REJECTED: 'rejected',
+  WITHDRAWN: 'withdrawn', COMPLETED: 'completed', EXPIRED: 'expired', CANCELLED: 'cancelled'
+});
+const SUBMISSION_STATUS = Object.freeze({
+  SUBMITTED: 'submitted', REVISION_REQUESTED: 'revision_requested',
+  APPROVED: 'approved', REJECTED: 'rejected'
+});
+const LEDGER_TYPE = Object.freeze({
+  PAYOUT_CREDIT: 'payout_credit', WITHDRAWAL_HOLD: 'withdrawal_hold', WITHDRAWAL_REVERSAL: 'withdrawal_reversal'
+});
+const LEDGER_DIRECTION = Object.freeze({ CREDIT: 'credit', DEBIT: 'debit' });
+const WITHDRAWAL_STATUS = Object.freeze({ PENDING: 'pending', PROCESSING: 'processing', SUCCEEDED: 'succeeded', FAILED: 'failed' });
+const NOTIFICATION_CHANNEL = Object.freeze({ EMAIL: 'email', WHATSAPP: 'whatsapp' });
+const NOTIFICATION_STATUS = Object.freeze({ PENDING: 'pending', SENT: 'sent', FAILED: 'failed', SKIPPED: 'skipped' });
+
+const MAX_REVISIONS = 2;
+const FEE_CONFIG = Object.freeze({ PLATFORM_FEE_PERCENT: 10, GST_PERCENT_ON_PLATFORM_FEE: 18, TDS_PERCENT_ON_PAYOUT: 1 });
+const QUIET_HOURS = Object.freeze({ START_HOUR_IST: 21, END_HOUR_IST: 9 });
+const MIN_WITHDRAWAL_PAISE = 10000;
+
+module.exports = {
+  ROLES, CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS,
+  LEDGER_TYPE, LEDGER_DIRECTION, WITHDRAWAL_STATUS, NOTIFICATION_CHANNEL, NOTIFICATION_STATUS,
+  MAX_REVISIONS, FEE_CONFIG, QUIET_HOURS, MIN_WITHDRAWAL_PAISE
+};
