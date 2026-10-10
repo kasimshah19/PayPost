@@ -16,7 +16,7 @@ function ApplicationList({ campaignId, onStatusChange }) {
   const fetchApplications = async () => {
     try {
       const res = await api.get(`/campaigns/${campaignId}/applications`);
-      setApplications(res.data);
+      setApplications(res.data.applications || []);
     } catch (err) {
       setError('Failed to load applications');
     } finally {

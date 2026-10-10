@@ -6,6 +6,7 @@ const notFound = require('./middleware/notFound');
 const authRoutes = require('./routes/auth.routes');
 const campaignRoutes = require('./routes/campaign.routes');
 const applicationRoutes = require('./routes/application.routes');
+const submissionRoutes = require('./routes/submission.routes');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api', applicationRoutes);
+app.use('/api/submissions', submissionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

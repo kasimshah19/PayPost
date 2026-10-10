@@ -7,6 +7,7 @@ import MoneyText from '../components/MoneyText';
 import ConfirmModal from '../components/ConfirmModal';
 import ApplicationList from '../components/ApplicationList';
 import { formatDateIST } from '../utils/date';
+import SubmissionList from '../components/SubmissionList';
 
 function CampaignDetail() {
   const { id } = useParams();
@@ -134,11 +135,9 @@ function CampaignDetail() {
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-bold mb-4">Submissions (coming in Phase 5)</h2>
+          <h2 className="text-xl font-bold mb-4">Submissions</h2>
           <p className="text-gray-600 mb-4">Pending Review: {(campaign.submissionCounts?.submitted || 0) + (campaign.submissionCounts?.revision_requested || 0)}</p>
-          <div className="p-4 bg-gray-50 border border-dashed rounded text-center text-gray-500">
-            Submissions list placeholder
-          </div>
+          <SubmissionList campaignId={id} onStatusChange={fetchCampaign} />
         </div>
       </div>
 

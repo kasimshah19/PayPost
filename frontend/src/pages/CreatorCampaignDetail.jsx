@@ -5,12 +5,14 @@ import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import MoneyText from '../components/MoneyText';
 import { formatDateIST } from '../utils/date';
+import SubmissionForm from '../components/SubmissionForm';
 
 function CreatorCampaignDetail() {
   const { id } = useParams();
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [applyLoading, setApplyLoading] = useState(false);
 
   useEffect(() => {
     fetchCampaign();
@@ -30,8 +32,6 @@ function CreatorCampaignDetail() {
   if (loading) return <Spinner />;
   if (error) return <div className="p-8 text-red-500 text-center">{error}</div>;
   if (!campaign) return null;
-
-  const [applyLoading, setApplyLoading] = useState(false);
 
   const handleApply = async () => {
     const pitch = prompt('Enter a short pitch for why you are a good fit (optional):');
@@ -117,6 +117,10 @@ function CreatorCampaignDetail() {
             </div>
           )}
         </div>
+        
+        {campaign.myApplicationId && ['approved', 'completed'].includes(campaign.myApplicationStatus) && (
+          <SubmissionForm applicationId={campaign.myApplicationId} />
+        )}
       </div>
     </div>
   );

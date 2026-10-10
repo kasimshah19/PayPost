@@ -191,7 +191,8 @@ class CampaignService {
         status: campaign.status,
         createdAt: campaign.createdAt,
         updatedAt: campaign.updatedAt,
-        myApplicationStatus: myApplication ? myApplication.status : null
+        myApplicationStatus: myApplication ? myApplication.status : null,
+        myApplicationId: myApplication ? myApplication._id : null
       };
     }
   }
