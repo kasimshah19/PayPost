@@ -1,41 +1,101 @@
-import { useContext, useState } from 'react';
-import { AuthContext } from '../context/AuthContext';
+import React, { useState, useEffect, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import { AuthContext } from '../context/AuthContext';
+import CampaignCard from '../components/CampaignCard';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
+import MoneyText from '../components/MoneyText';
 
 function BrandDashboard() {
   const { user } = useContext(AuthContext);
-  const [pingResult, setPingResult] = useState('');
+  const [summary, setSummary] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('');
 
-  const testApi = async () => {
+  useEffect(() => {
+    fetchData();
+  }, [filter]);
+
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const res = await api.get('/brand/ping');
-      setPingResult(JSON.stringify(res.data));
+      const [sumRes, campRes] = await Promise.all([
+        api.get('/campaigns/mine/summary'),
+        api.get(`/campaigns/mine${filter ? `?status=${filter}` : ''}`)
+      ]);
+      setSummary(sumRes.data);
+      setCampaigns(campRes.data);
     } catch (err) {
-      setPingResult(err.response?.data?.message || err.message);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
     }
   };
 
+  if (loading) return <Spinner />;
+  if (error) return <div className="p-8 text-red-500">{error}</div>;
+
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Brand Dashboard</h1>
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-8">
-        <p className="text-lg">Welcome, <span className="font-semibold">{user.name}</span></p>
-        <span className="inline-block mt-2 text-xs bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full uppercase font-bold tracking-wider">
-          {user.role}
-        </span>
+    <div className="p-8 max-w-6xl mx-auto">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Brand Dashboard</h1>
+          <p className="text-gray-600 mt-1">Welcome back, {user.name}</p>
+        </div>
+        <Link to="/brand/campaigns/new" className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 font-medium transition-colors">
+          + Create Campaign
+        </Link>
       </div>
-      
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h2 className="text-xl font-semibold mb-4">Test API Access</h2>
-        <button onClick={testApi} className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-md transition-colors">
-          Call /api/brand/ping
-        </button>
-        {pingResult && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-md border text-sm font-mono text-gray-700">
-            {pingResult}
+
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <p className="text-sm text-gray-500">Active</p>
+            <p className="text-2xl font-bold">{summary.activeCampaigns} <span className="text-lg font-normal text-gray-400">/ {summary.totalCampaigns}</span></p>
           </div>
-        )}
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <p className="text-sm text-gray-500">Total Budget</p>
+            <p className="text-xl font-bold text-indigo-700"><MoneyText paise={summary.totalBudgetPaise} /></p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <p className="text-sm text-gray-500">Reserved</p>
+            <p className="text-xl font-bold text-orange-600"><MoneyText paise={summary.totalReservedPaise} /></p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <p className="text-sm text-gray-500">Paid Out</p>
+            <p className="text-xl font-bold text-gray-700"><MoneyText paise={summary.totalPaidOutPaise} /></p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <p className="text-sm text-gray-500">Available</p>
+            <p className="text-xl font-bold text-green-600"><MoneyText paise={summary.totalAvailablePaise} /></p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">My Campaigns</h2>
+        <select 
+          value={filter} 
+          onChange={(e) => setFilter(e.target.value)}
+          className="border-gray-300 rounded-md shadow-sm p-2 border"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
       </div>
+
+      {campaigns.length === 0 ? (
+        <EmptyState message="No campaigns found" />
+      ) : (
+        <div className="grid gap-6">
+          {campaigns.map(c => <CampaignCard key={c._id} campaign={c} isBrand={true} />)}
+        </div>
+      )}
     </div>
   );
 }

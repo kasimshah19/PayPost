@@ -5,7 +5,11 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import BrandDashboard from './pages/BrandDashboard';
+import CreateCampaign from './pages/CreateCampaign';
+import CampaignDetail from './pages/CampaignDetail';
+import EditCampaign from './pages/EditCampaign';
 import CreatorDashboard from './pages/CreatorDashboard';
+import CreatorCampaignDetail from './pages/CreatorCampaignDetail';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -19,23 +23,15 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
-            {/* Protected Routes */}
-            <Route 
-              path="/brand" 
-              element={
-                <ProtectedRoute allowedRoles={['brand']}>
-                  <BrandDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/creator" 
-              element={
-                <ProtectedRoute allowedRoles={['creator']}>
-                  <CreatorDashboard />
-                </ProtectedRoute>
-              } 
-            />
+            {/* Brand Routes */}
+            <Route path="/brand" element={<ProtectedRoute allowedRoles={['brand']}><BrandDashboard /></ProtectedRoute>} />
+            <Route path="/brand/campaigns/new" element={<ProtectedRoute allowedRoles={['brand']}><CreateCampaign /></ProtectedRoute>} />
+            <Route path="/brand/campaigns/:id" element={<ProtectedRoute allowedRoles={['brand']}><CampaignDetail /></ProtectedRoute>} />
+            <Route path="/brand/campaigns/:id/edit" element={<ProtectedRoute allowedRoles={['brand']}><EditCampaign /></ProtectedRoute>} />
+
+            {/* Creator Routes */}
+            <Route path="/creator" element={<ProtectedRoute allowedRoles={['creator']}><CreatorDashboard /></ProtectedRoute>} />
+            <Route path="/creator/campaigns/:id" element={<ProtectedRoute allowedRoles={['creator']}><CreatorCampaignDetail /></ProtectedRoute>} />
           </Routes>
         </div>
       </Router>

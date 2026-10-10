@@ -1,40 +1,77 @@
-import { useContext, useState } from 'react';
-import { AuthContext } from '../context/AuthContext';
+import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/axios';
+import { AuthContext } from '../context/AuthContext';
+import CampaignCard from '../components/CampaignCard';
+import Spinner from '../components/Spinner';
+import EmptyState from '../components/EmptyState';
 
 function CreatorDashboard() {
   const { user } = useContext(AuthContext);
-  const [pingResult, setPingResult] = useState('');
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const testApi = async () => {
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
     try {
-      const res = await api.get('/creator/ping');
-      setPingResult(JSON.stringify(res.data));
+      const res = await api.get('/campaigns');
+      setCampaigns(res.data);
     } catch (err) {
-      setPingResult(err.response?.data?.message || err.message);
+      setError('Failed to load campaigns');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Creator Dashboard</h1>
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-8">
-        <p className="text-lg">Welcome, <span className="font-semibold">{user.name}</span></p>
-        <span className="inline-block mt-2 text-xs bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full uppercase font-bold tracking-wider">
-          {user.role}
-        </span>
+    <div className="p-8 max-w-6xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Creator Dashboard</h1>
+        <p className="text-gray-600 mt-1">Welcome back, {user.name}</p>
       </div>
-      
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h2 className="text-xl font-semibold mb-4">Test API Access</h2>
-        <button onClick={testApi} className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-md transition-colors">
-          Call /api/creator/ping
-        </button>
-        {pingResult && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-md border text-sm font-mono text-gray-700">
-            {pingResult}
+
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-2">
+          <h2 className="text-2xl font-bold mb-6">Browse Active Campaigns</h2>
+          
+          {loading ? (
+            <Spinner />
+          ) : error ? (
+            <div className="text-red-500">{error}</div>
+          ) : campaigns.length === 0 ? (
+            <EmptyState message="No active campaigns available right now. Check back later!" />
+          ) : (
+            <div className="grid gap-6">
+              {campaigns.map(c => <CampaignCard key={c._id} campaign={c} isBrand={false} />)}
+            </div>
+          )}
+        </div>
+        
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-bold mb-4">My Applications (Phase 4)</h2>
+            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
+              Applications placeholder
+            </div>
           </div>
-        )}
+          
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-bold mb-4">My Submissions (Phase 5)</h2>
+            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
+              Submissions placeholder
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-xl font-bold mb-4">Wallet (Phase 6)</h2>
+            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
+              Wallet placeholder
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
