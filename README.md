@@ -50,6 +50,8 @@ MongoDB, Express, React, Node.js (MERN) + Tailwind CSS + Vite
 - **Instagram Ownership Verification:** The MVP validates canonical Instagram permalink structures and dedupes shortcodes, but relies on mocked verification rather than live Meta Graph API OAuth.
 
 ## Tests & Integrity Audits
+> 🧪 For comprehensive details on testing tiers, Jest suites, property fuzzing, and cloud database audits, see **[TESTING.md](TESTING.md)**.
+
 - **Unit & Integration Tests:** Run `npm test` inside the `backend` folder (128/128 tests passing across all 9 test suites).
 - **Ledger Parity Audit:** Run `npm run wallet:check` inside the `backend` folder to verify 5 automated database integrity assertions against real MongoDB data.
 - **Wallet Backfill Script:** Run `npm run wallet:backfill` to safely migrate legacy records.
