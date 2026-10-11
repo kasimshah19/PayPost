@@ -1,7 +1,10 @@
-node_modules
+node_modules/
 .env
-dist
-build
-coverage
+.env.*
+!.env.example
+dist/
+build/
+coverage/
+logs/
+*.log
 .DS_Store
-logs
