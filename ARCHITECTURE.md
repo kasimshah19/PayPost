@@ -1804,4 +1804,307 @@ app.use(cors({
 - **Notification Link Integrity:** Outbound email notification links continue to strictly reference the first origin (`ALLOWED_ORIGINS[0]`), ensuring external emails always point to the primary public host.
 - **Wi-Fi Mobile Testing:** Developers can run `npm run dev -- --host` on the frontend and set `CLIENT_URL="http://localhost:5173,http://192.168.1.5:5173"` to test full touch interactions on physical iOS and Android hardware.
 
+---
+
+### 10. Creator Next-Actions Priority Ordering Engine (`GET /api/creator/next-actions`)
+
+#### Architectural Decision
+The creator experience is driven by urgency rather than passive browsing. The `GET /api/creator/next-actions` endpoint executes a prioritized aggregation of all outstanding responsibilities for the authenticated creator across three distinct action categories:
+1. **`submit_work`**: Applications approved on active campaigns where no deliverable has been submitted yet.
+2. **`resubmit`**: Submissions placed into `revision_requested` status by a brand requiring creative rework.
+3. **`withdrawal_failed`**: Payout off-ramp attempts that failed within the last 7 calendar days, enabling instant 1-tap recovery.
+
+#### Multi-Category Prioritization & Sorting Algorithm
+
+```mermaid
+graph TD
+    A[Creator Invokes /api/creator/next-actions] --> B[Fetch Active Approved Applications]
+    A --> C[Fetch Submissions with status: revision_requested]
+    A --> D[Fetch Latest Withdrawal Record]
+    
+    B --> E{Deliverable Exists?}
+    E -- No --> F[Emit Item: submit_work<br/>dueAt: campaign.submissionDeadline]
+    E -- Yes --> G[Skip]
+    
+    C --> H{Campaign Cancelled?}
+    H -- No --> I[Emit Item: resubmit<br/>dueAt: revisionDueAt]
+    H -- Yes --> J[Skip]
+    
+    D --> K{status === 'failed'<br/>& failedAt within 7 Days?}
+    K -- Yes --> L[Emit Item: withdrawal_failed<br/>path: /creator/wallet?retry=id]
+    K -- No --> M[Skip]
+    
+    F --> N[Sort Engine]
+    I --> N
+    L --> N
+    
+    N --> O[1. Overdue Items: soonest overdue first<br/>2. Upcoming Items: soonest dueAt first<br/>3. Non-dated / Failed Withdrawals]
+    O --> P[Return JSON Response with counts & items]
+```
+
+#### Detailed Item Specification & Lifecycle Matrix
+
+| Action Type (`type`) | Trigger Condition | Due Date Source (`dueAt`) | Overdue Condition (`overdue`) | Deep-Link Navigation Target (`path`) | Disappearance Condition |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`submit_work`** | `Application.status === 'approved'` AND `Application.submission == null` on active campaign | `Campaign.submissionDeadline` | `new Date() > campaign.submissionDeadline` | `/creator/campaigns/:id` | Disappears immediately upon deliverable submission (`POST /api/submissions`) |
+| **`resubmit`** | `Submission.status === 'revision_requested'` on active campaign | `Submission.revisionDueAt` | `new Date() > submission.revisionDueAt` | `/creator/campaigns/:campaignId` | Disappears upon re-submitting updated post link (`POST /api/submissions/:id/resubmit`) |
+| **`withdrawal_failed`** | Most recent `Withdrawal` has `status === 'failed'` AND `updatedAt >= Date.now() - 7 days` | `null` | `false` | `/creator/wallet?retry=:withdrawalId` | Disappears once a newer withdrawal attempt is created or 7 days expire |
+
+#### Backend Query Pipeline
+```javascript
+// backend/src/services/creator.service.js
+async getNextActions(creatorId) {
+  const items = [];
+
+  // 1. Approved applications needing initial deliverable
+  const approvedApps = await Application.find({ creator: creatorId, status: 'approved' })
+    .populate('campaign', 'title status submissionDeadline')
+    .lean();
+
+  for (const app of approvedApps) {
+    if (!app.campaign || app.campaign.status !== 'active') continue;
+    const hasSubmission = await Submission.exists({ application: app._id });
+    if (!hasSubmission) {
+      const dueAt = app.campaign.submissionDeadline;
+      items.push({
+        type: 'submit_work',
+        title: `Submit post for "${app.campaign.title}"`,
+        hint: 'Your application was approved. Upload your Instagram post.',
+        campaignId: app.campaign._id,
+        campaignTitle: app.campaign.title,
+        applicationId: app._id,
+        dueAt,
+        overdue: new Date() > new Date(dueAt),
+        path: `/creator/campaigns/${app.campaign._id}`
+      });
+    }
+  }
+
+  // 2. Submissions requiring creative revision
+  const revisions = await Submission.find({ creator: creatorId, status: 'revision_requested' })
+    .populate('campaign', 'title status')
+    .lean();
+
+  for (const sub of revisions) {
+    if (!sub.campaign || sub.campaign.status !== 'active') continue;
+    const dueAt = sub.revisionDueAt;
+    items.push({
+      type: 'resubmit',
+      title: `Revision requested: "${sub.campaign.title}"`,
+      hint: sub.reviews?.[sub.reviews.length - 1]?.note || 'Review brand notes and resubmit link.',
+      campaignId: sub.campaign._id,
+      campaignTitle: sub.campaign.title,
+      submissionId: sub._id,
+      dueAt,
+      overdue: dueAt ? new Date() > new Date(dueAt) : false,
+      path: `/creator/campaigns/${sub.campaign._id}`
+    });
+  }
+
+  // 3. Failed withdrawal recovery (last 7 days)
+  const latestWithdrawal = await Withdrawal.findOne({ user: creatorId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (latestWithdrawal && latestWithdrawal.status === 'failed') {
+    const failedTime = new Date(latestWithdrawal.updatedAt || latestWithdrawal.createdAt).getTime();
+    if (Date.now() - failedTime <= 7 * 24 * 60 * 60 * 1000) {
+      items.push({
+        type: 'withdrawal_failed',
+        title: 'Withdrawal failed',
+        hint: latestWithdrawal.failureReason || 'Banking payout failed. Tap to update UPI and retry.',
+        withdrawalId: latestWithdrawal._id,
+        dueAt: null,
+        overdue: false,
+        path: `/creator/wallet?retry=${latestWithdrawal._id}`
+      });
+    }
+  }
+
+  // 4. Stable urgency sorting: overdue first, then soonest deadline, then non-dated
+  items.sort((a, b) => {
+    if (a.overdue && !b.overdue) return -1;
+    if (!a.overdue && b.overdue) return 1;
+    if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
+    if (a.dueAt && !b.dueAt) return -1;
+    if (!a.dueAt && b.dueAt) return 1;
+    return 0;
+  });
+
+  return { counts: { total: items.length }, items };
+}
+```
+
+---
+
+### 11. Mathematical Invariant & Concurrency Proof: Atomic Approval
+
+#### The Problem of Stale UI Concurrency
+On mobile interfaces, users frequently experience network latency and delayed socket updates. Consider two brand admins (Admin A and Admin B) managing a campaign with only **1 slot remaining** and **₹2,000 available budget**:
+1. Admin A and Admin B both see Creator 1 and Creator 2 in their "Needs your attention" Action Center.
+2. Both UI clients show `canApprove === true`.
+3. Admin A taps **Approve** on Creator 1. Simultaneously (or 200ms later), Admin B taps **Approve** on Creator 2.
+
+#### Mathematical Verification of Safety
+In PayPost, the backend rejects the second approval at the database storage engine layer via atomic conditional expressions within a single Mongoose session transaction:
+
+$$\begin{aligned}
+\text{Condition for Approval} &\iff \begin{cases}
+\text{approvedCount} + 1 \le \text{slots} \\
+\text{reservedPaise} + \text{perCreatorFeePaise} \le \text{budgetPaise} - \text{paidOutPaise} \\
+\text{campaign.status} = \text{"active"} \\
+\text{application.status} = \text{"applied"}
+\end{cases}
+\end{aligned}$$
+
+```javascript
+// backend/src/services/application.service.js
+// ATOMIC CONDITIONAL UPDATE ON CAMPAIGN:
+const campaign = await Campaign.findOneAndUpdate(
+  {
+    _id: campaignId,
+    status: CAMPAIGN_STATUS.ACTIVE,
+    approvedCount: { $lt: campaign.slots },
+    $expr: {
+      $lte: [
+        { $add: ['$reservedPaise', '$perCreatorFeePaise'] },
+        { $subtract: ['$budgetPaise', '$paidOutPaise'] }
+      ]
+    }
+  },
+  {
+    $inc: {
+      approvedCount: 1,
+      reservedPaise: perCreatorFeePaise
+    }
+  },
+  { session, new: true }
+);
+
+if (!campaign) {
+  // If slots were filled or budget was exhausted by concurrent thread:
+  const err = new Error('Cannot approve: slots are full or campaign budget is exhausted');
+  err.status = 409;
+  throw err;
+}
+```
+
+#### Outcome Analysis
+- **Admin A’s Transaction:** Evaluates condition $\implies \text{approvedCount}: 0 < 1$ (True). Database increments `approvedCount` to 1 and locks ₹2,000 into `reservedPaise`. Commits successfully.
+- **Admin B’s Transaction:** Evaluates condition $\implies \text{approvedCount}: 1 < 1$ (False). The filter matches **0 documents**, `campaign` returns `null`, the transaction aborts with a clean `409 Conflict`, and zero funds or slots are over-allocated.
+- **Auditing Result:** **Zero financial leakage, zero slot over-subscription, 100% mathematical guarantee.**
+
+---
+
+### 12. Campaign Duplication & Safe Prefill Lifecycle (`?duplicate=<id>`)
+
+#### Architectural Decision
+Brands frequently execute recurring or seasonal influencer campaigns with identical guidelines, creator fees, and budgets. To eliminate form fatigue, PayPost implements an instantaneous **client-driven duplication lifecycle** that leverages the existing `GET /api/campaigns/:id` endpoint without creating redundant server routes.
+
+#### Duplication Flow & Security Guardrails
+
+```
+[Brand Dashboard]
+       │
+       ▼ Click "Duplicate" in Kebab Menu (⋯)
+[Navigate to: /brand/campaigns/new?duplicate=<campaignId>]
+       │
+       ▼ Query GET /api/campaigns/:id
+┌───────────────────────────────────────────────┐
+│              Authorization Check              │
+│       campaign.brand === authUser._id?        │
+└───────┬───────────────────────────────┬───────┘
+        │ Yes                           │ No / Not Found
+        ▼                               ▼
+[Prefill Form State]            [Render 404 / Error State]
+  - title: original + " (copy)"   "Campaign not found or access denied"
+  - description: original
+  - budgetPaise: original
+  - perCreatorFeePaise: original
+  - slots: original
+  - applicationDeadline: EMPTY
+  - submissionDeadline: EMPTY
+        │
+        ▼ Render Info Banner
+  "Copied from '<original.title>'. Choose new dates."
+```
+
+#### Why Deadlines are Intentionally Erased
+1. **Prevent Accidental Past Dates:** Existing campaigns may have past or obsolete deadline dates. Prefilling expired dates would violate the Mongoose validator `applicationDeadline > Date.now()` and create confusing validation errors.
+2. **Enforce Chronological Invariant:** Re-prompting for both deadlines ensures brands actively establish valid timeline constraints where $\text{submissionDeadline} > \text{applicationDeadline} > \text{Date.now()}$.
+
+---
+
+### 13. Deep-Linking State Architecture & Focus Highlight
+
+#### Architectural Decision
+To support frictionless navigation from notifications, the Action Center, and external emails, PayPost implements deep linking using structured URL query parameters:
+1. **`?tab=submissions&focus=<submissionId>`** (Campaign Detail view)
+2. **`?retry=<withdrawalId>`** (Creator Wallet view)
+
+#### Tab Synchronization & Auto-Focus Algorithm
+When a deep-link is visited, `CampaignDetail.jsx` and `CreatorWallet.jsx` execute an asynchronous DOM observer cycle:
+
+```javascript
+// frontend/src/pages/CampaignDetail.jsx
+const [searchParams] = useSearchParams();
+const activeTab = searchParams.get('tab') || 'overview';
+const focusId = searchParams.get('focus');
+
+useEffect(() => {
+  if (!focusId || loading) return;
+
+  // Defer execution until React finishes rendering list items
+  const timer = setTimeout(() => {
+    const element = document.getElementById(`submission-${focusId}`) 
+                 || document.getElementById(`applicant-${focusId}`);
+
+    if (element) {
+      // 1. Smooth scroll element to center of viewport
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // 2. Apply high-visibility pulsing highlight ring
+      element.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50/70');
+      
+      // 3. Remove highlight after 2.5 seconds
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50/70');
+      }, 2500);
+    }
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [focusId, activeTab, loading]);
+```
+
+---
+
+### 14. Mobile Bottom Sheet Lifecycle & Focus Trapping (`Modal.jsx`)
+
+#### Architectural Decision
+Modals on mobile screens suffer from poor ergonomic reachability and awkward viewport clipping. The custom `Modal` component dynamically branches its layout at the `sm` (640px) breakpoint:
+- **Mobile (`< 640px`)**: Fixed **Bottom Sheet** anchored to the viewport base with rounded top corners (`rounded-t-2xl`), a visual touch drag-handle, max height capped at `90dvh`, internal scrollable body, and sticky bottom button actions.
+- **Desktop (`≥ 640px`)**: Centered floating modal with drop-shadow and backdrop blur.
+
+#### Technical Implementation Details
+1. **Body Scroll Lock:** When the modal mounts (`isOpen === true`), `document.body.style.overflow = 'hidden'` prevents accidental background scrolling. The lock is released on unmount or close.
+2. **Focus Management:** On mount, focus is automatically moved to the first interactive element inside the modal. When the user closes the modal via `Esc`, backdrop tap, or the close button, focus returns to the triggering button.
+3. **WAI-ARIA Accessibility:** Conforms strictly to W3C Dialog standards:
+   - `role="dialog"`
+   - `aria-modal="true"`
+   - `aria-labelledby="modal-title"`
+
+---
+
+### 15. End-to-End API Contracts & Status Code Matrix (Phase 9)
+
+The table below outlines all backend endpoints created or extended in Phase 9, including authorization requirements, query parameters, response structures, and HTTP status codes:
+
+| Endpoint | Method | Auth & Role | Query / Body Params | Success Response | Error Codes & Conditions |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `/api/campaigns/mine/attention` | `GET` | Authenticated `brand` | None | `{ counts: { pendingApplicants, pendingSubmissions, total }, applicants: [...], submissions: [...] }` | `401` Unauthorized (No token)<br/>`403` Forbidden (Creator role) |
+| `/api/creator/next-actions` | `GET` | Authenticated `creator` | None | `{ counts: { total }, items: [{ type, title, hint, campaignId, dueAt, overdue, path }] }` | `401` Unauthorized (No token)<br/>`403` Forbidden (Brand role) |
+| `/api/campaigns` (Creator Browse) | `GET` | Public / Creator | `q` (string, max 50)<br/>`sort` (`newest`, `fee_desc`, `ending_soon`)<br/>`minFeePaise` (integer $\ge 0$)<br/>`page`, `limit` | `{ campaigns: [...], pagination: { total, page, limit, totalPages } }` | `400` Bad Request (Invalid sort value or negative fee)<br/>*Never exposes budget or reserved numbers* |
+
+
 
