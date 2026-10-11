@@ -39,6 +39,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrors({});
     
     const budgetPaise = rupeesToPaise(formData.budgetRupees);
     const perCreatorFeePaise = rupeesToPaise(formData.perCreatorFeeRupees);
@@ -48,14 +49,44 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
       return;
     }
 
+    if (perCreatorFeePaise > budgetPaise) {
+      setErrors({ perCreatorFeePaise: 'Fee per creator cannot exceed total budget' });
+      return;
+    }
+
+    const appIso = fromInputValue(formData.applicationDeadline);
+    const subIso = fromInputValue(formData.submissionDeadline);
+
+    if (!appIso) {
+      setErrors({ applicationDeadline: 'Please select an application deadline' });
+      return;
+    }
+    if (!subIso) {
+      setErrors({ submissionDeadline: 'Please select a submission deadline' });
+      return;
+    }
+
+    const appDate = new Date(appIso);
+    const subDate = new Date(subIso);
+
+    if (appDate <= new Date()) {
+      setErrors({ applicationDeadline: 'Application deadline must be in the future' });
+      return;
+    }
+
+    if (subDate <= appDate) {
+      setErrors({ submissionDeadline: 'Submission deadline must be after application deadline' });
+      return;
+    }
+
     const payload = {
       title: formData.title,
       description: formData.description,
       budgetPaise,
       perCreatorFeePaise,
       slots: parseInt(formData.slots, 10),
-      applicationDeadline: fromInputValue(formData.applicationDeadline),
-      submissionDeadline: fromInputValue(formData.submissionDeadline)
+      applicationDeadline: appIso,
+      submissionDeadline: subIso
     };
 
     onSubmit(payload, setErrors);

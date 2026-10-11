@@ -38,7 +38,8 @@ function EditCampaign() {
       if (err.response?.data?.errors) {
         const errMap = {};
         err.response.data.errors.forEach(e => {
-          if (e.path && e.path.length) errMap[e.path[0]] = e.message;
+          const key = e.field || (e.path && e.path.length ? e.path[0] : null);
+          if (key) errMap[key] = e.message;
         });
         setErrors(errMap);
       } else {

@@ -8,6 +8,7 @@ const validate = (schema) => (req, res, next) => {
     if (error instanceof z.ZodError) {
       const fieldErrors = error.errors.map(err => ({
         field: err.path.join('.'),
+        path: err.path,
         message: err.message
       }));
       return res.status(400).json({ message: 'Invalid input', errors: fieldErrors });

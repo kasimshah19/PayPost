@@ -36,6 +36,12 @@ MongoDB, Express, React, Node.js (MERN) + Tailwind CSS + Vite
 - **Minimum 48-Hour Revision Window:** Revision deadlines are computed as $\max(\text{campaign.deadline}, \text{now} + 48\text{h})$ to protect creators from deadline-edge revision traps.
 - **Centralized Backend Fee Engine:** All financial calculations originate exclusively from `backend/src/utils/feeCalculator.js` and `/api/fees/preview`, guaranteeing zero client-server rounding drift.
 - **Campaign Link Deduplication:** Uniqueness composite index `{ campaign: 1, postUrlKey: 1 }` prevents two creators from submitting the same Instagram deliverable.
+- **Hold-First Off-Ramp Protocol:** Creator funds move from `balancePaise` $\rightarrow$ `heldPaise` in an atomic DB transaction *before* dispatching to the banking provider. This completely prevents double-withdrawals, and if the provider fails, funds are reversed safely rather than lost.
+- **Out-of-Transaction Banking Calls & Reconcile Crash Recovery:** Third-party network calls are executed strictly outside database transactions to prevent connection pool exhaustion and locking. Finalization runs in a separate subsequent transaction. If the server crashes mid-flight, a background reconcile step queries `getPayoutStatus(idempotencyKey)`; because the provider uses the same idempotency key, double-disbursements are mathematically impossible.
+- **Single Active Withdrawal Enforced by DB Partial Unique Index:** Only one active withdrawal is permitted per creator at a time. This is enforced at the database engine level via `{ user: 1, status: { $in: ['pending', 'processing'] } }` partial unique index (not just application-level `if` checks), guaranteeing race-condition immunity.
+- **Idempotent Settlement Finalization (`finalizeWithdrawal`):** Uses an atomic conditional update filtering on `{ status: "processing" }`. If a webhook callback fires twice or success and failure signals race concurrently, only the first transition commits.
+- **No Automatic Retry on Failed Payouts:** Real-world banking failures in India (e.g. invalid UPI VPA) are often permanent; automated background retries risk gateway blacklisting and locked funds. Instead, funds reverse immediately and the creator gets a 1-click "Try again" action.
+- **Deterministic Mock Provider (No `Math.random`):** Payment simulation uses deterministic heuristics (e.g. `*@fail` triggers) rather than pseudo-random functions, ensuring 100% reproducible server restarts and non-flaky CI/CD test runs.
 
 ## 3. Differences from the existing UGC flow (friction reduction) and what I implemented
 - **1-Click Application Flow:** Creator pitches and notes are completely optional, reducing application drop-off by over 70%.
@@ -43,11 +49,17 @@ MongoDB, Express, React, Node.js (MERN) + Tailwind CSS + Vite
 - **Pre-Approval Brand Liquidity Preview:** Brands see a live preview of remaining budget before confirming creator approvals.
 - **Actionable "Needs Your Review" Hub:** Dedicated dashboard widget aggregates all pending deliverables across all campaigns so brands never have to hunt for submissions.
 - **"Expected Earnings" Pipeline:** Creator dashboard displays escrowed pending earnings alongside available wallet balance.
+- **"Withdraw All" Quick Action:** Creators can pre-populate their entire withdrawable balance in a single click, eliminating manual paise typing.
+- **Last Used UPI Auto-Prefill:** The creator's last successfully used UPI ID is automatically prefilled, eliminating repetitive 25-character data entry.
+- **1-Click "Try Again" on Failed Withdrawals:** If a bank transfer fails, creators can retry with a single click carrying over their previous details for instant editing.
 
 ## 4. Known gaps
 - **Token Storage:** JWTs are stored in browser `localStorage` for prototype simplicity; production hardening will migrate to `httpOnly`, `SameSite=Strict` cookies with refresh token rotation.
 - **Corporate Account Bookings:** Platform fee, GST, and TDS are stored in itemized snapshots within `LedgerEntry.metadata`, but not yet booked to multi-legged corporate clearing accounts.
 - **Instagram Ownership Verification:** The MVP validates canonical Instagram permalink structures and dedupes shortcodes, but relies on mocked verification rather than live Meta Graph API OAuth.
+- **UPI VPA Real-Time Validation:** UPI address verification uses format regex rather than live NPCI / Penny-drop lookup APIs (e.g. Cashfree/RazorpayX bank verification).
+- **No Manual Creator Cancellation:** Creators cannot manually cancel an in-flight withdrawal once submitted while it is in `pending` or `processing` status.
+- **Velocity & Fraud / AML Limits:** No daily withdrawal velocity limits, maximum daily caps, or automated anti-money-laundering (AML) / fraud checks are enforced in the MVP.
 
 ## Tests & Integrity Audits
 > 🧪 For comprehensive details on testing tiers, Jest suites, property fuzzing, and cloud database audits, see **[TESTING.md](TESTING.md)**.
