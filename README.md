@@ -357,3 +357,19 @@ Result:      100% Passing (Zero Flaky Tests)
 ## 📄 License & Attribution
 
 This project is licensed under the **MIT License**. Built with ❤️ for Indian creators and modern digital brands.
+
+---
+
+## 👨‍💻 Author & Connect
+
+**Author:** Kasim Shah
+
+Connect with me:
+- **Portfolio:** [kasim-portfolio-umber.vercel.app](https://kasim-portfolio-umber.vercel.app/)
+- **LinkedIn:** [Kasim Shah](https://www.linkedin.com/in/kasim-shah-176175340/)
+- **GitHub:** [@kasimshah19](https://github.com/kasimshah19)
+
+<div align="center">
+  <p>© 2026 Al-Hayat Diagnostic Lab — All rights reserved</p>
+</div>
+
