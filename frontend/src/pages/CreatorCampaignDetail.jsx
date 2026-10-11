@@ -102,24 +102,48 @@ function CreatorCampaignDetail() {
           </div>
         </div>
 
-        <div className="border-t pt-6 flex justify-end">
+        <div className="border-t pt-6 flex justify-between items-center">
           {(!campaign.myApplicationStatus || ['withdrawn', 'rejected', 'cancelled'].includes(campaign.myApplicationStatus)) ? (
-            <button 
-              onClick={handleApply}
-              disabled={isClosed || applyLoading}
-              className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {applyLoading ? 'Applying...' : 'Apply Now'}
-            </button>
+            <div className="ml-auto">
+              <button 
+                onClick={handleApply}
+                disabled={isClosed || applyLoading}
+                className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {applyLoading ? 'Applying...' : 'Apply Now'}
+              </button>
+            </div>
           ) : (
-            <div className="text-green-700 font-semibold bg-green-50 px-4 py-2 rounded-md">
-              Application Status: {campaign.myApplicationStatus}
+            <div className="flex items-center justify-between w-full">
+              <div className="text-green-700 font-semibold bg-green-50 px-4 py-2 rounded-md">
+                Application Status: <span className="capitalize">{campaign.myApplicationStatus}</span>
+              </div>
+              {campaign.myApplication?.canWithdraw && (
+                <button 
+                  onClick={async () => {
+                    if (!window.confirm('Are you sure you want to withdraw your application?')) return;
+                    try {
+                      await api.post(`/applications/${campaign.myApplicationId}/withdraw`);
+                      await fetchCampaign();
+                    } catch (err) {
+                      alert(err.response?.data?.message || 'Failed to withdraw application');
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium rounded-md transition-colors"
+                >
+                  Withdraw Application
+                </button>
+              )}
             </div>
           )}
         </div>
         
-        {campaign.myApplicationId && ['approved', 'completed'].includes(campaign.myApplicationStatus) && (
-          <SubmissionForm applicationId={campaign.myApplicationId} />
+        {campaign.myApplicationId && ['approved', 'completed', 'rejected'].includes(campaign.myApplicationStatus) && (
+          <SubmissionForm 
+            applicationId={campaign.myApplicationId} 
+            campaign={campaign} 
+            onSubmissionUpdated={fetchCampaign} 
+          />
         )}
       </div>
     </div>

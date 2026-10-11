@@ -36,4 +36,4 @@ const requireRole = (...roles) => {
   };
 };
 
-module.exports = { protect, requireRole };
+module.exports = { protect, requireRole, restrictTo: requireRole };

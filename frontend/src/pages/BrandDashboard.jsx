@@ -38,6 +38,12 @@ function BrandDashboard() {
   if (loading) return <Spinner />;
   if (error) return <div className="p-8 text-red-500">{error}</div>;
 
+  // Find oldest campaign with pending reviews
+  const pendingCampaigns = campaigns
+    .filter(c => (c.pendingReviewCount > 0) || (c.submissionCounts?.submitted > 0))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const oldestPendingCampaign = pendingCampaigns[0];
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -49,6 +55,28 @@ function BrandDashboard() {
           + Create Campaign
         </Link>
       </div>
+
+      {summary && summary.pendingReviewCount > 0 && (
+        <div className="mb-8 bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <h3 className="text-lg font-bold text-amber-900">Needs Your Review</h3>
+            </div>
+            <p className="text-sm text-amber-800 mt-1">
+              You have <span className="font-bold text-amber-950">{summary.pendingReviewCount}</span> pending {summary.pendingReviewCount === 1 ? 'submission' : 'submissions'} awaiting your approval or feedback.
+            </p>
+          </div>
+          {oldestPendingCampaign && (
+            <Link
+              to={`/brand/campaigns/${oldestPendingCampaign._id}`}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm rounded-md shadow-xs transition-colors shrink-0"
+            >
+              Review Oldest: {oldestPendingCampaign.title} &rarr;
+            </Link>
+          )}
+        </div>
+      )}
 
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">

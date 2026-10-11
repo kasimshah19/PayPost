@@ -28,7 +28,9 @@ const submissionSchema = new mongoose.Schema({
       message: 'postUrl must be a valid https Instagram URL'
     }
   },
+  postUrlKey: { type: String, required: true },
   revisionCount: { type: Number, default: 0, max: MAX_REVISIONS },
+  revisionDueAt: { type: Date },
   versions: [versionSchema],
   reviews: [reviewSchema],
   decidedAt: { type: Date },
@@ -41,6 +43,17 @@ const submissionSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+submissionSchema.pre('validate', function(next) {
+  if (this.postUrl && !this.postUrlKey) {
+    const match = this.postUrl.match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
+    if (match) {
+      this.postUrlKey = match[2];
+    }
+  }
+  next();
+});
+
+submissionSchema.index({ campaign: 1, postUrlKey: 1 }, { unique: true });
 submissionSchema.index({ brand: 1, status: 1 });
 submissionSchema.index({ creator: 1, createdAt: -1 });
 

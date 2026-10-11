@@ -11,9 +11,9 @@ jest.mock('../src/config/env', () => ({
 
 const app = require('../src/app');
 const User = require('../src/models/User');
-const Campaign = require('../models/Campaign');
-const Application = require('../models/Application');
-const Submission = require('../models/Submission');
+const Campaign = require('../src/models/Campaign');
+const Application = require('../src/models/Application');
+const Submission = require('../src/models/Submission');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../src/constants');
 const { generateToken } = require('../src/utils/jwt');
 
@@ -116,13 +116,13 @@ describe('Campaign API', () => {
     let campaign1, campaign2;
     beforeEach(async () => {
       campaign1 = await Campaign.create({
-        brand: brand._id, title: 'C1', budgetPaise: 100, perCreatorFeePaise: 10, slots: 5,
+        brand: brand._id, title: 'Campaign 1', budgetPaise: 100, perCreatorFeePaise: 10, slots: 5,
         applicationDeadline: new Date(Date.now() + 86400), submissionDeadline: new Date(Date.now() + 172800),
         status: CAMPAIGN_STATUS.ACTIVE, reservedPaise: 0, paidOutPaise: 0, approvedCount: 0
       });
       const otherBrand = await User.create({ name: 'B2', email: 'b2@b.com', passwordHash: 'h', role: 'brand' });
       campaign2 = await Campaign.create({
-        brand: otherBrand._id, title: 'C2', budgetPaise: 100, perCreatorFeePaise: 10, slots: 5,
+        brand: otherBrand._id, title: 'Campaign 2', budgetPaise: 100, perCreatorFeePaise: 10, slots: 5,
         applicationDeadline: new Date(Date.now() + 86400), submissionDeadline: new Date(Date.now() + 172800),
         status: CAMPAIGN_STATUS.ACTIVE, reservedPaise: 0, paidOutPaise: 0, approvedCount: 0
       });
@@ -168,7 +168,7 @@ describe('Campaign API', () => {
     let campaign;
     beforeEach(async () => {
       campaign = await Campaign.create({
-        brand: brand._id, title: 'C1', budgetPaise: 1000, perCreatorFeePaise: 100, slots: 5,
+        brand: brand._id, title: 'Campaign 1', budgetPaise: 1000, perCreatorFeePaise: 100, slots: 5,
         applicationDeadline: new Date(Date.now() + 86400000), submissionDeadline: new Date(Date.now() + 172800000),
         status: CAMPAIGN_STATUS.ACTIVE, reservedPaise: 200, paidOutPaise: 0, approvedCount: 2
       });
@@ -202,15 +202,16 @@ describe('Campaign API', () => {
   });
 
   describe('POST /api/campaigns/:id/cancel', () => {
-    let campaign, app1, app2;
+    let campaign, app1, app2, creator2;
     beforeEach(async () => {
+      creator2 = await User.create({ name: 'Creator 2', email: 'c2@c.com', passwordHash: 'h', role: 'creator' });
       campaign = await Campaign.create({
-        brand: brand._id, title: 'C1', budgetPaise: 1000, perCreatorFeePaise: 100, slots: 5,
+        brand: brand._id, title: 'Campaign 1', budgetPaise: 1000, perCreatorFeePaise: 100, slots: 5,
         applicationDeadline: new Date(Date.now() + 86400000), submissionDeadline: new Date(Date.now() + 172800000),
         status: CAMPAIGN_STATUS.ACTIVE, reservedPaise: 200, paidOutPaise: 0, approvedCount: 2
       });
       app1 = await Application.create({ campaign: campaign._id, creator: creator._id, feePaise: 100, status: APPLICATION_STATUS.APPROVED, statusHistory: [] });
-      app2 = await Application.create({ campaign: campaign._id, creator: creator._id, feePaise: 100, status: APPLICATION_STATUS.APPLIED, statusHistory: [] });
+      app2 = await Application.create({ campaign: campaign._id, creator: creator2._id, feePaise: 100, status: APPLICATION_STATUS.APPLIED, statusHistory: [] });
     });
 
     it('releases reservedPaise and updates apps', async () => {
@@ -227,7 +228,14 @@ describe('Campaign API', () => {
     });
 
     it('blocks if submission is submitted', async () => {
-      await Submission.create({ campaign: campaign._id, application: app1._id, creator: creator._id, instagramUrl: 'http', status: SUBMISSION_STATUS.SUBMITTED, statusHistory: [] });
+      await Submission.create({
+        campaign: campaign._id,
+        application: app1._id,
+        creator: creator._id,
+        brand: brand._id,
+        postUrl: 'https://instagram.com/p/test123',
+        status: SUBMISSION_STATUS.SUBMITTED
+      });
       const res = await request(app).post(`/api/campaigns/${campaign._id}/cancel`).set('Authorization', `Bearer ${brandToken}`).send({ cancelReason: 'Test' });
       expect(res.status).toBe(409);
     });

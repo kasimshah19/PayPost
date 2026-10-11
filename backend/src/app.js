@@ -25,6 +25,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api', submissionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

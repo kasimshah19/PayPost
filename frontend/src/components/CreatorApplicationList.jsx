@@ -64,15 +64,26 @@ function CreatorApplicationList() {
               <p className="font-semibold text-gray-800"><MoneyText paise={app.feePaise} /></p>
             </div>
             
-            {['applied', 'approved'].includes(app.status) && (
-              <button 
-                onClick={() => handleWithdraw(app._id)}
-                disabled={actionLoading}
-                className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 disabled:opacity-50"
-              >
-                Withdraw
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {app.status === 'approved' && !app.submission && (
+                <Link
+                  to={`/creator/campaigns/${app.campaign?._id}`}
+                  className="px-3 py-1 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 transition-colors"
+                >
+                  Submit work
+                </Link>
+              )}
+
+              {app.canWithdraw && (
+                <button 
+                  onClick={() => handleWithdraw(app._id)}
+                  disabled={actionLoading}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Withdraw
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}

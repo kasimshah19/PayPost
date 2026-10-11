@@ -17,10 +17,15 @@ function CampaignDetail() {
   const [error, setError] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchCampaign();
-  }, [id]);
+  }, [id, refreshKey]);
+
+  const handleDataRefresh = () => {
+    setRefreshKey(k => k + 1);
+  };
 
   const fetchCampaign = async () => {
     try {
@@ -131,13 +136,22 @@ function CampaignDetail() {
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-xl font-bold mb-4">Applicants</h2>
           <p className="text-gray-600 mb-4">Total Applied: {campaign.applicantCounts?.applied || 0}</p>
-          <ApplicationList campaignId={id} onStatusChange={fetchCampaign} />
+          <ApplicationList 
+            campaignId={id} 
+            onStatusChange={handleDataRefresh} 
+            refreshKey={refreshKey} 
+          />
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-xl font-bold mb-4">Submissions</h2>
-          <p className="text-gray-600 mb-4">Pending Review: {(campaign.submissionCounts?.submitted || 0) + (campaign.submissionCounts?.revision_requested || 0)}</p>
-          <SubmissionList campaignId={id} onStatusChange={fetchCampaign} />
+          <p className="text-gray-600 mb-4">
+            Pending Review: {campaign.pendingReviewCount ?? ((campaign.submissionCounts?.submitted || 0) + (campaign.submissionCounts?.revision_requested || 0))}
+          </p>
+          <SubmissionList 
+            campaignId={id} 
+            onStatusChange={handleDataRefresh} 
+          />
         </div>
       </div>
 

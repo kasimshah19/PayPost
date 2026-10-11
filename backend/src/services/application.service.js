@@ -114,9 +114,24 @@ class ApplicationService {
     }
 
     return await withTransaction(async (session) => {
-      const application = await Application.findById(applicationId).session(session);
-      if (!application || application.creator.toString() !== creatorId) {
-        const err = new Error('Not Found'); err.status = 404; throw err;
+      const application = await Application.findOne({
+        _id: applicationId,
+        creator: creatorId,
+        status: { $in: [APPLICATION_STATUS.APPLIED, APPLICATION_STATUS.APPROVED] },
+        submission: null
+      }).session(session);
+
+      if (!application) {
+        const existing = await Application.findById(applicationId).session(session);
+        if (!existing || existing.creator.toString() !== creatorId) {
+          const err = new Error('Not Found'); err.status = 404; throw err;
+        }
+        if (existing.submission || (await Submission.exists({ application: applicationId }).session(session))) {
+          const err = new Error('You have already submitted work and can no longer withdraw'); err.status = 409; throw err;
+        }
+        const err = new Error(`Cannot transition application from ${existing.status} to ${APPLICATION_STATUS.WITHDRAWN}`);
+        err.status = 409;
+        throw err;
       }
 
       const hasSubmission = await Submission.exists({ application: applicationId }).session(session);
@@ -264,18 +279,35 @@ class ApplicationService {
       .sort({ createdAt: -1 })
       .lean();
 
-    const mapped = applications.map(app => ({
-      _id: app._id,
-      creator: {
-        _id: app.creator._id,
-        name: app.creator.name
-      },
-      pitch: app.pitch,
-      status: app.status,
-      feePaise: app.feePaise,
-      createdAt: app.createdAt,
-      approvedAt: app.approvedAt,
-      statusHistory: app.statusHistory
+    const mapped = await Promise.all(applications.map(async (app) => {
+      let submissionData = null;
+      if (app.submission) {
+        submissionData = {
+          id: app.submission._id || app.submission,
+          _id: app.submission._id || app.submission,
+          status: app.submission.status
+        };
+      } else {
+        const sub = await Submission.findOne({ application: app._id }).select('_id status').lean();
+        if (sub) {
+          submissionData = { id: sub._id, _id: sub._id, status: sub.status };
+        }
+      }
+
+      return {
+        _id: app._id,
+        creator: {
+          _id: app.creator._id,
+          name: app.creator.name
+        },
+        pitch: app.pitch,
+        status: app.status,
+        feePaise: app.feePaise,
+        submission: submissionData,
+        createdAt: app.createdAt,
+        approvedAt: app.approvedAt,
+        statusHistory: app.statusHistory
+      };
     }));
 
     const header = {
@@ -306,10 +338,18 @@ class ApplicationService {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Attach canWithdraw to each
+    // Attach canWithdraw and submission to each
     const mapped = await Promise.all(applications.map(async (app) => {
+      let submissionData = null;
+      const sub = app.submission
+        ? await Submission.findById(app.submission).select('_id status').lean()
+        : await Submission.findOne({ application: app._id }).select('_id status').lean();
+      if (sub) {
+        submissionData = { id: sub._id, _id: sub._id, status: sub.status };
+      }
+
       const canWithdraw = (app.status === APPLICATION_STATUS.APPLIED || app.status === APPLICATION_STATUS.APPROVED) 
-          && !(await Submission.exists({ application: app._id }));
+          && !submissionData;
 
       return {
         _id: app._id,
@@ -325,6 +365,7 @@ class ApplicationService {
         feePaise: app.feePaise,
         createdAt: app.createdAt,
         statusHistory: app.statusHistory,
+        submission: submissionData,
         canWithdraw
       };
     }));

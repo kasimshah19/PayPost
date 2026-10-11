@@ -17,6 +17,11 @@ const CampaignCard = ({ campaign, isBrand = false }) => {
         </div>
         <div className="flex flex-col items-end gap-2">
           <StatusBadge status={campaign.status} />
+          {isBrand && (campaign.pendingReviewCount > 0 || (campaign.submissionCounts?.submitted > 0)) && (
+            <span className="text-xs bg-amber-100 text-amber-800 font-semibold px-2.5 py-1 rounded-full border border-amber-200">
+              Needs Review ({campaign.pendingReviewCount ?? campaign.submissionCounts?.submitted})
+            </span>
+          )}
           {campaign.myApplicationStatus && (
             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
               You: {campaign.myApplicationStatus}

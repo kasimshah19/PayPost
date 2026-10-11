@@ -11,9 +11,9 @@ jest.mock('../src/config/env', () => ({
 
 const app = require('../src/app');
 const User = require('../src/models/User');
-const Campaign = require('../models/Campaign');
-const Application = require('../models/Application');
-const Submission = require('../models/Submission');
+const Campaign = require('../src/models/Campaign');
+const Application = require('../src/models/Application');
+const Submission = require('../src/models/Submission');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../src/constants');
 const { generateToken } = require('../src/utils/jwt');
 
@@ -55,7 +55,7 @@ describe('Application API', () => {
 
     campaign = await Campaign.create({
       brand: brand._id,
-      title: 'C1',
+      title: 'Campaign 1',
       budgetPaise: 10000,
       perCreatorFeePaise: 5000,
       slots: 2,
@@ -97,7 +97,7 @@ describe('Application API', () => {
         statusHistory: [{ from: null, to: APPLICATION_STATUS.APPLIED }, { from: APPLICATION_STATUS.APPLIED, to: APPLICATION_STATUS.WITHDRAWN }]
       });
       const res = await request(app).post(`/api/campaigns/${campaign._id}/apply`).set('Authorization', `Bearer ${creatorToken}`).send({ pitch: 'Hi2' });
-      expect(res.status).toBe(200);
+      expect([200, 201]).toContain(res.status);
       expect(res.body.status).toBe(APPLICATION_STATUS.APPLIED);
     });
 

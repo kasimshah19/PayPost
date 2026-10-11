@@ -2,25 +2,42 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import StatusBadge from './StatusBadge';
 import MoneyText from './MoneyText';
+import Spinner from './Spinner';
+import ConfirmModal from './ConfirmModal';
+import { validateInstagramUrl } from '../utils/instagram';
+import { formatDateIST, formatCountdown } from '../utils/date';
 
+/**
+ * SubmissionList component for Brand CampaignDetail:
+ * - Status filter tabs with dynamic counts (All, Needs review, Revision requested, Approved, Rejected)
+ * - Details per card: Creator name, Open post link (verified), StatusBadge, Revisions used, Versions & Reviews history, locked fee
+ * - Review action modals: Approve, Request Revision (max 2), Reject (final)
+ * - Instant refresh on action and 409 error alerts
+ */
 function SubmissionList({ campaignId, onStatusChange }) {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Review state
-  const [reviewingId, setReviewingId] = useState(null);
-  const [action, setAction] = useState('approved');
-  const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+
+  // Modals state
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [revisionTarget, setRevisionTarget] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+
+  // Modal form states
+  const [actionNote, setActionNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   useEffect(() => {
     fetchSubmissions();
   }, [campaignId]);
 
   const fetchSubmissions = async () => {
+    setLoading(true);
     try {
-      const res = await api.get(`/submissions/campaign/${campaignId}`);
+      const res = await api.get(`/campaigns/${campaignId}/submissions`);
       setSubmissions(res.data);
     } catch (err) {
       setError('Failed to load submissions');
@@ -29,106 +46,418 @@ function SubmissionList({ campaignId, onStatusChange }) {
     }
   };
 
-  const handleReview = async (e, submissionId) => {
-    e.preventDefault();
-    setSubmitting(true);
+  // 1. APPROVE ACTION
+  const handleApprove = async () => {
+    if (!approveTarget) return;
+    setActionLoading(true);
+    setModalError('');
     try {
-      await api.post(`/submissions/${submissionId}/review`, { action, note });
-      setReviewingId(null);
-      setNote('');
-      setAction('approved');
+      await api.post(`/submissions/${approveTarget._id}/approve`, {
+        note: actionNote.trim() || undefined
+      });
+      setApproveTarget(null);
+      setActionNote('');
       await fetchSubmissions();
       if (onStatusChange) onStatusChange();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to submit review');
+      const msg = err.response?.data?.message || 'Failed to approve submission';
+      setModalError(msg);
+      alert(msg);
     } finally {
-      setSubmitting(false);
+      setActionLoading(false);
     }
   };
 
-  if (loading) return <div>Loading submissions...</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
+  // 2. REQUEST REVISION ACTION
+  const handleRequestRevision = async (e) => {
+    e.preventDefault();
+    if (!revisionTarget) return;
+    if (actionNote.trim().length < 5) {
+      setModalError('Revision note must be at least 5 characters');
+      return;
+    }
 
-  if (submissions.length === 0) {
-    return (
-      <div className="p-4 bg-gray-50 border border-dashed rounded text-center text-gray-500">
-        No submissions yet
-      </div>
-    );
-  }
+    setActionLoading(true);
+    setModalError('');
+    try {
+      await api.post(`/submissions/${revisionTarget._id}/request-revision`, {
+        note: actionNote.trim()
+      });
+      setRevisionTarget(null);
+      setActionNote('');
+      await fetchSubmissions();
+      if (onStatusChange) onStatusChange();
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to request revision';
+      setModalError(msg);
+      alert(msg);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 3. REJECT ACTION
+  const handleReject = async (e) => {
+    e.preventDefault();
+    if (!rejectTarget) return;
+    if (actionNote.trim().length < 5) {
+      setModalError('Rejection note must be at least 5 characters');
+      return;
+    }
+
+    setActionLoading(true);
+    setModalError('');
+    try {
+      await api.post(`/submissions/${rejectTarget._id}/reject`, {
+        note: actionNote.trim()
+      });
+      setRejectTarget(null);
+      setActionNote('');
+      await fetchSubmissions();
+      if (onStatusChange) onStatusChange();
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to reject submission';
+      setModalError(msg);
+      alert(msg);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) return <Spinner />;
+  if (error) return <div className="text-red-500 p-4">{error}</div>;
+
+  // Filter tab counts
+  const counts = {
+    all: submissions.length,
+    submitted: submissions.filter(s => s.status === 'submitted').length,
+    revision_requested: submissions.filter(s => s.status === 'revision_requested').length,
+    approved: submissions.filter(s => s.status === 'approved').length,
+    rejected: submissions.filter(s => s.status === 'rejected').length
+  };
+
+  const filteredSubmissions = submissions.filter(s => {
+    if (activeTab === 'all') return true;
+    return s.status === activeTab;
+  });
 
   return (
-    <div className="space-y-4">
-      {submissions.map(sub => (
-        <div key={sub._id} className="border p-4 rounded-md bg-gray-50">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <p className="font-semibold">{sub.creator.name}</p>
-              <p className="text-xs text-gray-500">Submitted: {new Date(sub.createdAt).toLocaleDateString()}</p>
-            </div>
-            <StatusBadge status={sub.status} />
-          </div>
-          
-          <div className="mb-4 text-sm">
-            <strong>Link:</strong> <a href={sub.postUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">{sub.postUrl}</a>
-          </div>
+    <div>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-6 overflow-x-auto text-sm">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`py-2 px-3 font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'all'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          All ({counts.all})
+        </button>
+        <button
+          onClick={() => setActiveTab('submitted')}
+          className={`py-2 px-3 font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'submitted'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Needs Review ({counts.submitted})
+        </button>
+        <button
+          onClick={() => setActiveTab('revision_requested')}
+          className={`py-2 px-3 font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'revision_requested'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Revision Requested ({counts.revision_requested})
+        </button>
+        <button
+          onClick={() => setActiveTab('approved')}
+          className={`py-2 px-3 font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'approved'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Approved ({counts.approved})
+        </button>
+        <button
+          onClick={() => setActiveTab('rejected')}
+          className={`py-2 px-3 font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'rejected'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Rejected ({counts.rejected})
+        </button>
+      </div>
 
-          {['submitted', 'revision_requested'].includes(sub.status) && (
-            <div className="mt-4 border-t pt-4">
-              {reviewingId === sub._id ? (
-                <form onSubmit={(e) => handleReview(e, sub._id)} className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Action</label>
-                    <select 
-                      value={action} 
-                      onChange={e => setAction(e.target.value)}
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                    >
-                      <option value="approved">Approve & Release Payment</option>
-                      <option value="revision_requested">Request Revision</option>
-                      <option value="rejected">Reject</option>
-                    </select>
-                  </div>
-                  {(action === 'revision_requested' || action === 'rejected') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Reason / Note <span className="text-red-500">*</span></label>
-                      <textarea 
-                        required
-                        value={note}
-                        onChange={e => setNote(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                        rows={2}
-                      />
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <button type="submit" disabled={submitting} className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm">
-                      {submitting ? 'Saving...' : 'Submit Review'}
-                    </button>
-                    <button type="button" onClick={() => setReviewingId(null)} className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm">
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <button 
-                  onClick={() => setReviewingId(sub._id)}
-                  className="text-sm px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50"
-                >
-                  Review Submission
-                </button>
-              )}
-            </div>
-          )}
-
-          {sub.status === 'approved' && sub.payoutBreakdown && (
-            <div className="mt-4 bg-green-50 p-3 rounded text-sm text-green-800">
-              <p><strong>Approved on:</strong> {new Date(sub.decidedAt).toLocaleDateString()}</p>
-              <p>Payout of <MoneyText paise={sub.payoutBreakdown.grossFeePaise} /> has been released to the creator.</p>
-            </div>
-          )}
+      {/* Submissions list */}
+      {filteredSubmissions.length === 0 ? (
+        <div className="p-8 bg-gray-50 border border-dashed rounded-lg text-center text-gray-500">
+          No submissions found for this filter.
         </div>
-      ))}
+      ) : (
+        <div className="space-y-6">
+          {filteredSubmissions.map(sub => {
+            const isUrlValid = validateInstagramUrl(sub.postUrl).isValid;
+            const feeRupees = (sub.feePaise / 100).toLocaleString('en-IN');
+            const canReview = sub.status === 'submitted';
+            const hasRevisionsLeft = sub.revisionsLeft > 0;
+
+            return (
+              <div key={sub._id} className="border rounded-lg bg-white p-5 shadow-sm space-y-4">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-base">{sub.creator?.name || 'Creator'}</h4>
+                    <p className="text-xs text-gray-500">
+                      Submitted on {formatDateIST(sub.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-600">
+                      Revisions used: <span className="font-semibold text-gray-900">{sub.revisionCount}/2</span>
+                    </span>
+                    <StatusBadge status={sub.status} />
+                  </div>
+                </div>
+
+                {/* Content & URL */}
+                <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-xs font-semibold text-gray-500 uppercase">Deliverable Link</span>
+                    <div className="mt-1">
+                      {isUrlValid ? (
+                        <a
+                          href={sub.postUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium hover:underline break-all"
+                        >
+                          <span>Open post on Instagram ↗</span>
+                        </a>
+                      ) : (
+                        <span className="text-gray-500 italic">Invalid Instagram link</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-xs font-semibold text-gray-500 uppercase">Locked Creator Fee</span>
+                    <div className="mt-1 text-base font-bold text-gray-800">
+                      <MoneyText paise={sub.feePaise} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Revision due date banner if status is revision_requested */}
+                {sub.status === 'revision_requested' && sub.revisionDueAt && (
+                  <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
+                    <span className="font-semibold">Revision Due By:</span> {formatDateIST(sub.revisionDueAt)}{' '}
+                    <span className="font-medium text-amber-900">({formatCountdown(sub.revisionDueAt)})</span>
+                  </div>
+                )}
+
+                {/* Version history & reviews */}
+                <div className="bg-gray-50 p-3 rounded text-xs space-y-2 border">
+                  <div className="font-semibold text-gray-700">History ({sub.versions?.length || 1} versions):</div>
+                  <div className="space-y-1.5 pl-2 border-l-2 border-gray-300">
+                    {sub.versions?.map((ver, idx) => (
+                      <div key={idx} className="text-gray-600">
+                        <span className="font-semibold">v{idx + 1}:</span> {formatDateIST(ver.submittedAt)}
+                        {ver.note && <span className="italic ml-2">"{ver.note}"</span>}
+                      </div>
+                    ))}
+                    {sub.reviews?.map((rev, idx) => (
+                      <div key={`rev-${idx}`} className="text-indigo-700 font-medium">
+                        <span className="uppercase font-semibold">[{rev.action}]:</span> "{rev.note}" - {formatDateIST(rev.at)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Review action buttons for status 'submitted' */}
+                {canReview && (
+                  <div className="pt-3 border-t flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setApproveTarget(sub);
+                        setActionNote('');
+                        setModalError('');
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded hover:bg-green-700 shadow-xs transition-colors"
+                    >
+                      Approve Deliverable
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setRevisionTarget(sub);
+                        setActionNote('');
+                        setModalError('');
+                      }}
+                      disabled={!hasRevisionsLeft}
+                      className={`px-4 py-2 text-sm font-semibold rounded shadow-xs transition-colors ${
+                        hasRevisionsLeft
+                          ? 'bg-amber-500 text-white hover:bg-amber-600'
+                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={!hasRevisionsLeft ? 'Maximum 2 revisions already used.' : ''}
+                    >
+                      {hasRevisionsLeft ? 'Request Revision' : 'Maximum 2 revisions used. Approve or reject.'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setRejectTarget(sub);
+                        setActionNote('');
+                        setModalError('');
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded hover:bg-red-700 shadow-xs transition-colors"
+                    >
+                      Reject Deliverable
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 1. APPROVE MODAL */}
+      <ConfirmModal
+        isOpen={Boolean(approveTarget)}
+        title="Approve Submission"
+        message={
+          approveTarget
+            ? `Approve and release ₹${(approveTarget.feePaise / 100).toLocaleString('en-IN')} to the creator?`
+            : ''
+        }
+        confirmText="Approve & Release"
+        error={modalError}
+        onConfirm={handleApprove}
+        onCancel={() => {
+          setApproveTarget(null);
+          setModalError('');
+        }}
+      />
+
+      {/* 2. REQUEST REVISION MODAL */}
+      {Boolean(revisionTarget) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Request Revision</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Creator will have at least 48 hours to update and resubmit their deliverable.
+              (Revision {revisionTarget.revisionCount + 1} of 2)
+            </p>
+
+            {modalError && (
+              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
+                {modalError}
+              </div>
+            )}
+
+            <form onSubmit={handleRequestRevision}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Revision Feedback (Required, min 5 chars) *
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={actionNote}
+                  onChange={(e) => setActionNote(e.target.value)}
+                  placeholder="Explain clearly what changes or adjustments are required..."
+                  className="w-full border-gray-300 rounded-md shadow-sm p-2.5 border sm:text-sm focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRevisionTarget(null);
+                    setModalError('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || actionNote.trim().length < 5}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium shadow-xs"
+                >
+                  {actionLoading ? 'Sending...' : 'Send Revision Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. REJECT MODAL */}
+      {Boolean(rejectTarget) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-red-700 mb-2">Reject Submission</h3>
+            <div className="bg-red-50 border border-red-200 text-red-800 text-sm p-3 rounded-md mb-4">
+              <strong>Warning:</strong> This decision is final. The reserved ₹
+              {(rejectTarget.feePaise / 100).toLocaleString('en-IN')} will return to your available budget and the slot will reopen.
+            </div>
+
+            {modalError && (
+              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
+                {modalError}
+              </div>
+            )}
+
+            <form onSubmit={handleReject}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason for Rejection (Required, min 5 chars) *
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={actionNote}
+                  onChange={(e) => setActionNote(e.target.value)}
+                  placeholder="Explain why this deliverable was rejected..."
+                  className="w-full border-gray-300 rounded-md shadow-sm p-2.5 border sm:text-sm focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRejectTarget(null);
+                    setModalError('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || actionNote.trim().length < 5}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm font-medium shadow-xs"
+                >
+                  {actionLoading ? 'Rejecting...' : 'Reject Deliverable'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

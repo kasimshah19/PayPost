@@ -19,6 +19,7 @@ const applicationSchema = new mongoose.Schema({
   withdrawnAt: { type: Date },
   rejectedAt: { type: Date },
   expiredAt: { type: Date },
+  submission: { type: mongoose.Schema.Types.ObjectId, ref: 'Submission', default: null },
   statusHistory: [statusHistorySchema]
 }, { timestamps: true });
 

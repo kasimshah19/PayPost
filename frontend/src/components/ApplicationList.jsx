@@ -3,7 +3,7 @@ import api from '../api/axios';
 import StatusBadge from './StatusBadge';
 import Spinner from './Spinner';
 
-function ApplicationList({ campaignId, onStatusChange }) {
+function ApplicationList({ campaignId, onStatusChange, refreshKey }) {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -11,7 +11,7 @@ function ApplicationList({ campaignId, onStatusChange }) {
 
   useEffect(() => {
     fetchApplications();
-  }, [campaignId]);
+  }, [campaignId, refreshKey]);
 
   const fetchApplications = async () => {
     try {
@@ -46,9 +46,14 @@ function ApplicationList({ campaignId, onStatusChange }) {
       {applications.map(app => (
         <div key={app._id} className="border rounded-lg p-4 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="font-bold">{app.creator?.name}</span>
               <StatusBadge status={app.status} />
+              {app.status === 'approved' && (
+                <span className="text-xs flex items-center gap-1 font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded border">
+                  Submission: <StatusBadge status={app.submission?.status || 'not_submitted'} />
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{app.pitch || <span className="italic text-gray-400">No pitch provided</span>}</p>
             <p className="text-xs text-gray-500 mt-2">Applied on {new Date(app.createdAt).toLocaleDateString()}</p>

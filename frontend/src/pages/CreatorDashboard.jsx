@@ -6,6 +6,7 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 
 import CreatorApplicationList from '../components/CreatorApplicationList';
+import CreatorSubmissionList from '../components/CreatorSubmissionList';
 
 function CreatorDashboard() {
   const { user } = useContext(AuthContext);
@@ -59,10 +60,8 @@ function CreatorDashboard() {
           </div>
           
           <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-xl font-bold mb-4">My Submissions (Phase 5)</h2>
-            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
-              Submissions placeholder
-            </div>
+            <h2 className="text-xl font-bold mb-4">My Submissions</h2>
+            <CreatorSubmissionList />
           </div>
           
           <div className="bg-white rounded-lg shadow-sm border p-6">

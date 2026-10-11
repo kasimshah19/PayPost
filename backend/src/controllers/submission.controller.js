@@ -1,32 +1,89 @@
-const submissionService = require('../services/submission.service');
+const submissionService = require('../services/submissionService');
 
-const submitWork = async (req, res, next) => {
+// CREATOR
+const submitDeliverable = async (req, res, next) => {
   try {
-    const { applicationId } = req.params;
+    const applicationId = req.params.id || req.params.applicationId;
     const { postUrl, note } = req.body;
-    const submission = await submissionService.submitWork(applicationId, req.user.id, postUrl, note);
+    const submission = await submissionService.submitDeliverable(applicationId, req.user.id, { postUrl, note });
     res.status(201).json(submission);
   } catch (error) {
     next(error);
   }
 };
 
-const reviewSubmission = async (req, res, next) => {
+const resubmitDeliverable = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { action, note } = req.body;
-    const submission = await submissionService.reviewSubmission(id, req.user.id, action, note);
-    res.json(submission);
+    const { postUrl, note } = req.body;
+    const submission = await submissionService.resubmitDeliverable(id, req.user.id, { postUrl, note });
+    res.status(200).json(submission);
   } catch (error) {
     next(error);
   }
 };
 
+const listMySubmissions = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const submissions = await submissionService.listMySubmissions(req.user.id, status);
+    res.status(200).json(submissions);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// BRAND
+const listCampaignSubmissions = async (req, res, next) => {
+  try {
+    const campaignId = req.params.id || req.params.campaignId;
+    const { status } = req.query;
+    const submissions = await submissionService.listCampaignSubmissions(campaignId, req.user.id, status);
+    res.status(200).json(submissions);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const approveSubmission = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+    const submission = await submissionService.approveSubmission(id, req.user.id, { note });
+    res.status(200).json(submission);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requestRevision = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+    const submission = await submissionService.requestRevision(id, req.user.id, { note });
+    res.status(200).json(submission);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const rejectSubmission = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+    const submission = await submissionService.rejectSubmission(id, req.user.id, { note });
+    res.status(200).json(submission);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// BOTH
 const getSubmission = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const submission = await submissionService.getSubmission(id, req.user.id);
-    res.json(submission);
+    const submission = await submissionService.getSubmission(id, req.user);
+    res.status(200).json(submission);
   } catch (error) {
     next(error);
   }
@@ -34,31 +91,44 @@ const getSubmission = async (req, res, next) => {
 
 const getApplicationSubmission = async (req, res, next) => {
   try {
-    const { applicationId } = req.params;
+    const applicationId = req.params.id || req.params.applicationId;
     const submission = await submissionService.getApplicationSubmission(applicationId, req.user.id);
-    if (!submission) {
-      return res.status(200).json(null);
-    }
-    res.json(submission);
-  } catch (error) {
-    next(error);
-  }
-};
-
-const getCampaignSubmissions = async (req, res, next) => {
-  try {
-    const { campaignId } = req.params;
-    const submissions = await submissionService.getCampaignSubmissions(campaignId, req.user.id);
-    res.json(submissions);
+    res.status(200).json(submission);
   } catch (error) {
     next(error);
   }
 };
 
 module.exports = {
-  submitWork,
-  reviewSubmission,
+  submitDeliverable,
+  resubmitDeliverable,
+  listMySubmissions,
+  listCampaignSubmissions,
+  approveSubmission,
+  requestRevision,
+  rejectSubmission,
   getSubmission,
   getApplicationSubmission,
-  getCampaignSubmissions
+  // Backward compatibility aliases
+  submitWork: submitDeliverable,
+  reviewSubmission: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { action, note } = req.body;
+      if (action === 'approved') {
+        const sub = await submissionService.approveSubmission(id, req.user.id, { note });
+        return res.json(sub);
+      } else if (action === 'revision_requested') {
+        const sub = await submissionService.requestRevision(id, req.user.id, { note });
+        return res.json(sub);
+      } else if (action === 'rejected') {
+        const sub = await submissionService.rejectSubmission(id, req.user.id, { note });
+        return res.json(sub);
+      }
+      res.status(400).json({ message: 'Invalid action' });
+    } catch (error) {
+      next(error);
+    }
+  },
+  getCampaignSubmissions: listCampaignSubmissions
 };

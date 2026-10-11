@@ -54,7 +54,8 @@ class CampaignService {
         availablePaise: c.budgetPaise - c.reservedPaise - c.paidOutPaise,
         slotsLeft: c.slots - c.approvedCount,
         applicantCounts,
-        submissionCounts
+        submissionCounts,
+        pendingReviewCount: submissionCounts.submitted
       };
     }));
 
@@ -63,10 +64,17 @@ class CampaignService {
 
   async getMineSummary(brandId) {
     const campaigns = await Campaign.find({ brand: brandId, status: { $ne: CAMPAIGN_STATUS.CANCELLED } });
+    const campaignIds = campaigns.map(c => c._id);
     
+    const pendingReviewCount = await Submission.countDocuments({
+      campaign: { $in: campaignIds },
+      status: SUBMISSION_STATUS.SUBMITTED
+    });
+
     const summary = {
       totalCampaigns: campaigns.length,
       activeCampaigns: campaigns.filter(c => c.status === CAMPAIGN_STATUS.ACTIVE).length,
+      pendingReviewCount,
       totalBudgetPaise: 0,
       totalReservedPaise: 0,
       totalPaidOutPaise: 0,
@@ -161,6 +169,7 @@ class CampaignService {
 
       campaign.applicantCounts = applicantCounts;
       campaign.submissionCounts = submissionCounts;
+      campaign.pendingReviewCount = submissionCounts.submitted;
       campaign.availablePaise = campaign.budgetPaise - campaign.reservedPaise - campaign.paidOutPaise;
       campaign.slotsLeft = campaign.slots - campaign.approvedCount;
 
@@ -177,7 +186,16 @@ class CampaignService {
       return campaign;
     } else if (user.role === 'creator') {
       const myApplication = await Application.findOne({ campaign: campaign._id, creator: user.id }).lean();
-      
+      let submissionData = null;
+      if (myApplication) {
+        const sub = myApplication.submission
+          ? await Submission.findById(myApplication.submission).select('_id status').lean()
+          : await Submission.findOne({ application: myApplication._id }).select('_id status').lean();
+        if (sub) {
+          submissionData = { id: sub._id, _id: sub._id, status: sub.status };
+        }
+      }
+
       return {
         _id: campaign._id,
         title: campaign.title,
@@ -192,7 +210,14 @@ class CampaignService {
         createdAt: campaign.createdAt,
         updatedAt: campaign.updatedAt,
         myApplicationStatus: myApplication ? myApplication.status : null,
-        myApplicationId: myApplication ? myApplication._id : null
+        myApplicationId: myApplication ? myApplication._id : null,
+        myApplication: myApplication ? {
+          _id: myApplication._id,
+          id: myApplication._id,
+          status: myApplication.status,
+          feePaise: myApplication.feePaise,
+          submission: submissionData
+        } : null
       };
     }
   }
@@ -272,7 +297,17 @@ class CampaignService {
 
       const pendingSubmissions = await Submission.countDocuments({
         campaign: id,
-        status: { $in: [SUBMISSION_STATUS.SUBMITTED, SUBMISSION_STATUS.REVISION_REQUESTED] }
+        $or: [
+          { status: SUBMISSION_STATUS.SUBMITTED },
+          {
+            status: SUBMISSION_STATUS.REVISION_REQUESTED,
+            $or: [
+              { revisionDueAt: { $exists: false } },
+              { revisionDueAt: null },
+              { revisionDueAt: { $gt: new Date() } }
+            ]
+          }
+        ]
       }).session(session);
 
       if (pendingSubmissions > 0) {
