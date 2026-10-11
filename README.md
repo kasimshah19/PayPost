@@ -370,6 +370,6 @@ Connect with me:
 - **GitHub:** [@kasimshah19](https://github.com/kasimshah19)
 
 <div align="center">
-  <p>© 2026 Al-Hayat Diagnostic Lab — All rights reserved</p>
+  <p>© 2026 PayPost — Creator Deliverables & Financial Settlement Engine. All rights reserved.</p>
 </div>
 
