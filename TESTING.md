@@ -1,8 +1,8 @@
-# PayPost — Comprehensive Quality Assurance & Testing Engineering Reference
+# PayPost — Enterprise Quality Assurance, Concurrency & Testing Engineering Reference
 
-This document provides an exhaustive, authoritative technical guide to the quality assurance, automated test architecture, concurrency verification, and database integrity audits implemented across **PayPost**. 
+This document serves as the **exhaustive, authoritative engineering manual** for all automated testing, quality assurance frameworks, mathematical invariant proofs, concurrency stress tests, and cloud database integrity audits implemented across **PayPost**.
 
-As a financial infrastructure application handling real monetary transactions and escrow balances, testing is designed to guarantee zero floating-point leakage, absolute concurrency safety, and full compliance with double-entry accounting invariants.
+As a financial technology application handling irreversible ledger credits, campaign escrows, and statutory tax withholdings, testing is engineered to guarantee **zero floating-point leakage, absolute concurrency safety, and full compliance with double-entry accounting standards**.
 
 ---
 
@@ -20,6 +20,7 @@ Standard web applications typically verify basic CRUD routes and HTTP 200 respon
 | **Data Mutability** | Tests verify `UPDATE` and `DELETE` queries | **Append-Only Immutability:** Tests verify that ledger rows can *never* be altered | Unit tests confirm Mongoose pre-hooks block `updateOne`, `deleteOne`, etc. |
 | **Transaction Failure** | Unhandled or standard catch block | **ACID Rollback Verification:** Deliberate mid-flight crashes tested | Pre-inserted duplicate key triggers full MongoDB transaction rollback |
 | **Audit Verification** | None; trusted at runtime | **Continuous Reconciliation:** Live database integrity audit script | `npm run wallet:check` reconciles 100% of wallets against ledger sums |
+| **Multi-Tenant Privacy** | Returns `403 Forbidden` on unauthorized resources | **Enumeration Prevention:** Returns `404 Not Found` to conceal competitor campaigns | Query-level compound filtering `{ _id, brandId }` |
 
 ---
 
@@ -30,19 +31,19 @@ Standard web applications typically verify basic CRUD routes and HTTP 200 respon
 │                        PAYPOST TEST HARNESS TOPOLOGY                   │
 └────────────────────────────────────────────────────────────────────────┘
 
-    [Jest Test Runner] ────────── executes ──────────► 9 Test Suites
+    [Jest Test Runner] ────────── executes ──────────► 9 Test Suites (128 Tests)
             │                                                │
             ▼                                                ▼
      [Supertest] (HTTP)                             [Unit Math Assertions]
             │                                                │
             ▼                                                ▼
-    [Express API App]                              [feeCalculator pure math]
+    [Express API App]                              [feeCalculator Pure Function]
             │
             ▼
  [MongoMemoryReplSet] ◄─── In-Memory Ephemeral MongoDB Replica Set
       (3 Replica Nodes)     - Supports full multi-document ACID transactions
                             - Isolated per test suite (zero state pollution)
-                            - Never touches real MongoDB Atlas database
+                            - Never touches real MongoDB Atlas cloud database
 ```
 
 ### Infrastructure & Tooling Evaluation Matrix
@@ -77,26 +78,122 @@ The repository contains **9 dedicated automated test suites** encompassing 128 a
 
 ---
 
-## 4. Concurrency & Race Condition Verification
+## 4. Deep-Dive: Test Code Implementation Patterns
 
-Financial market systems are highly susceptible to concurrency bugs such as double-spending and overbooking. PayPost includes explicit automated race-condition tests simulating high-frequency concurrent operations.
+### A. Concurrency & Race Condition Verification Pattern
+To prove that duplicate approvals or double-spend cannot occur under high-concurrency burst traffic, PayPost executes simultaneous requests inside `Promise.all()`:
 
-### Concurrency Stress Test Scenarios
+```javascript
+// Excerpt from backend/tests/payout.test.js
+it('handles concurrent double approval requests without double-spending', async () => {
+  // Fire two approval requests concurrently for the exact same submission
+  const [res1, res2] = await Promise.all([
+    request(app)
+      .post(`/api/submissions/${submission._id}/approve`)
+      .set('Authorization', `Bearer ${brandToken}`),
+    request(app)
+      .post(`/api/submissions/${submission._id}/approve`)
+      .set('Authorization', `Bearer ${brandToken}`)
+  ]);
 
-| Concurrency Scenario | Threat / Failure Vector | Test Simulation Technique | Atomic Defense Mechanism | Verified Outcome |
-| :--- | :--- | :--- | :--- | :--- |
-| **Dual-Click Payout Approval** | Brand clicks "Approve" twice rapidly; creator could receive double payment | `Promise.all([approveReq(1), approveReq(2)])` executed concurrently | Compound unique index on `idempotencyKey: "payout:<submissionId>"` inside transaction | **1 succeeds (200 OK), 1 aborts (400/409)**; creator wallet credited exactly once |
-| **Concurrent Creator Approvals** | Two brand admins approve different creators when only 1 slot remains | Multiple approval requests fired simultaneously via concurrent threads | Single-query atomic update with filter condition `approvedCount: { $lt: slots }` | **Only 1 creator approved**; second request rejected with "Slots filled" |
-| **Simultaneous Submit & Withdraw** | Creator submits deliverable in Tab A while withdrawing in Tab B | Concurrent PATCH requests to transition state from `approved` | Atomic conditional update on `{ _id, status: 'approved' }` | **Only 1 state transition succeeds**; zero orphan submissions created |
-| **Mid-Flight Database Crash / Rollback** | Database connection drops or ledger insert crashes during settlement | Test pre-inserts a colliding ledger row to force a duplicate key failure | Multi-document transaction session `session.abortTransaction()` | **Full ACID Rollback:** Campaign reserved funds, submission status, and wallet balance remain 100% untouched |
+  // Exactly one request must succeed; the other must be rejected
+  const successCount = [res1, res2].filter(r => r.status === 200).length;
+  const failureCount = [res1, res2].filter(r => r.status >= 400).length;
+
+  expect(successCount).toBe(1);
+  expect(failureCount).toBe(1);
+
+  // Assert ledger received EXACTLY ONE credit entry
+  const ledgerEntries = await LedgerEntry.find({ refId: submission._id });
+  expect(ledgerEntries).toHaveLength(1);
+
+  // Assert wallet balance was incremented EXACTLY ONCE
+  const wallet = await Wallet.findOne({ user: creatorUser._id });
+  expect(wallet.balancePaise).toBe(expectedNetPayoutPaise);
+});
+```
 
 ---
 
-## 5. Mathematical Precision & Property-Based Fuzz Testing
+### B. Transaction Rollback & Atomicity Assertion Pattern
+Financial systems must guarantee that if any stage of a multi-table settlement fails (e.g., database timeout or constraint crash), **no partial updates persist**:
 
-In calculating statutory deductions (Platform fee: 10%, GST: 18% on platform fee, TDS: 1% on creator payout), fractional paise will inevitably occur. Standard division can lead to rounding drift.
+```javascript
+// Excerpt from backend/tests/payout.test.js
+it('aborts the entire transaction and rolls back state if ledger insert fails', async () => {
+  // Deliberately pre-insert an entry with the target idempotency key to force a collision
+  await LedgerEntry.create({
+    wallet: creatorWallet._id,
+    user: creatorUser._id,
+    type: 'payout_credit',
+    direction: 'credit',
+    amountPaise: 100,
+    balanceAfterPaise: 100,
+    idempotencyKey: `payout:${submission._id}`
+  });
 
-### Statutory Formula & Rounding Specification
+  // Attempt payout approval (triggers duplicate key error on ledger insertion)
+  const res = await request(app)
+    .post(`/api/submissions/${submission._id}/approve`)
+    .set('Authorization', `Bearer ${brandToken}`);
+
+  expect(res.status).toBeGreaterThanOrEqual(400);
+
+  // ASSERT TOTAL ROLLBACK:
+  // 1. Submission status remains 'submitted' (not approved)
+  const freshSub = await Submission.findById(submission._id);
+  expect(freshSub.status).toBe('submitted');
+
+  // 2. Campaign escrow counters remain untouched
+  const freshCamp = await Campaign.findById(campaign._id);
+  expect(freshCamp.reservedPaise).toBe(initialReserved);
+  expect(freshCamp.paidOutPaise).toBe(initialPaidOut);
+
+  // 3. Creator wallet was not credited
+  const freshWallet = await Wallet.findById(creatorWallet._id);
+  expect(freshWallet.balancePaise).toBe(0);
+});
+```
+
+---
+
+### C. Mathematical Property & Fuzz Testing Pattern
+The fee engine must conserve value down to the single integer paisa across every conceivable monetary input:
+
+```javascript
+// Excerpt from backend/tests/feeMath.test.js
+it('conserves money across 2,000 random gross amounts (Property Fuzzing)', () => {
+  for (let i = 0; i < 2000; i++) {
+    // Generate pseudo-random fee between 1 paisa (₹0.01) and 10,000,000 paise (₹100,000.00)
+    const grossPaise = Math.floor(Math.random() * 10000000) + 1;
+    const b = calculateBreakdown(grossPaise);
+
+    // 1. Strict Integer Invariant
+    expect(Number.isInteger(b.platformFeePaise)).toBe(true);
+    expect(Number.isInteger(b.gstPaise)).toBe(true);
+    expect(Number.isInteger(b.tdsPaise)).toBe(true);
+    expect(Number.isInteger(b.netPayoutPaise)).toBe(true);
+
+    // 2. Non-Negative Invariant
+    expect(b.platformFeePaise).toBeGreaterThanOrEqual(0);
+    expect(b.gstPaise).toBeGreaterThanOrEqual(0);
+    expect(b.tdsPaise).toBeGreaterThanOrEqual(0);
+    expect(b.netPayoutPaise).toBeGreaterThanOrEqual(0);
+
+    // 3. Mathematical Conservation Law: Parts must equal Whole exactly
+    const sum = b.platformFeePaise + b.gstPaise + b.tdsPaise + b.netPayoutPaise;
+    expect(sum).toBe(grossPaise);
+  }
+});
+```
+
+---
+
+## 5. Mathematical Precision & Rounding Specifications
+
+### Statutory Deduction Equations
+All arithmetic uses integer-only half-up rounding:
+$$\text{round\_half\_up}(x) = \lfloor \frac{x + 50}{100} \rfloor$$
 
 $$\text{platformFeePaise} = \lfloor \frac{\text{grossFeePaise} \times 10 + 50}{100} \rfloor$$
 $$\text{gstPaise} = \lfloor \frac{\text{platformFeePaise} \times 18 + 50}{100} \rfloor$$
@@ -104,26 +201,43 @@ $$\text{payoutBeforeTdsPaise} = \text{grossFeePaise} - \text{platformFeePaise} -
 $$\text{tdsPaise} = \lfloor \frac{\text{payoutBeforeTdsPaise} \times 1 + 50}{100} \rfloor$$
 $$\text{netPayoutPaise} = \text{payoutBeforeTdsPaise} - \text{tdsPaise}$$
 
-### Formula Test Vectors & Invariant Assertions
+### Formula Test Vectors & Rounding Boundary Matrix
 
 | Gross Fee Input | Platform Fee (10%) | GST (18% of Platform) | Payout pre-TDS | TDS (1% of Payout) | Creator Net Take-Home | Conservation Check ($\Sigma \equiv \text{Gross}$) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **₹1,000.00** (`100000`) | ₹100.00 (`10000`) | ₹18.00 (`1800`) | ₹882.00 (`88200`) | ₹8.82 (`882`) | **₹873.18** (`87318`) | $100 + 18 + 8.82 + 873.18 \equiv 1000.00$ |
 | **₹499.50** (`49950`) | ₹49.95 (`4995`) | ₹8.99 (`899`) | ₹440.56 (`44056`) | ₹4.41 (`441`) | **₹436.15** (`43615`) | $49.95 + 8.99 + 4.41 + 436.15 \equiv 499.50$ |
 | **₹100.00** (`10000`) | ₹10.00 (`1000`) | ₹1.80 (`180`) | ₹88.20 (`8820`) | ₹0.88 (`88`) | **₹87.32** (`8732`) | $10.00 + 1.80 + 0.88 + 87.32 \equiv 100.00$ |
+| **₹9.99** (`999`) | ₹1.00 (`100`) | ₹0.18 (`18`) | ₹8.81 (`881`) | ₹0.09 (`9`) | **₹8.72** (`872`) | $1.00 + 0.18 + 0.09 + 8.72 \equiv 9.99$ |
 | **₹1.00** (`100`) | ₹0.10 (`10`) | ₹0.02 (`2`) | ₹0.88 (`88`) | ₹0.01 (`1`) | **₹0.87** (`87`) | $0.10 + 0.02 + 0.01 + 0.87 \equiv 1.00$ |
-
-### Fuzz Testing Mechanics (`feeMath.test.js`)
-- **Sample Size:** 2,000 pseudo-random values generated uniformly between 1 paisa (₹0.01) and 10,000,000 paise (₹100,000.00).
-- **Assertions:**
-  1. `typeof val === 'number' && Number.isInteger(val)` for every single output field.
-  2. `platformFeePaise + gstPaise + tdsPaise + netPayoutPaise === grossFeePaise` without exception.
-  3. Every sub-component is non-negative (`>= 0`).
-- **Result:** **2,000 / 2,000 runs passed.** Zero lost paise, zero negative values.
 
 ---
 
-## 6. Live Cloud Database Integrity Audits (`wallet:check`)
+## 6. HTTP API Endpoint & Error Contract Matrix
+
+Every single REST endpoint exposed by the backend is verified against its standard response codes and failure scenarios:
+
+### Comprehensive HTTP Testing Matrix
+
+| Endpoint Route | Verb | Expected Success | Handled Client Errors | Handled Security & Auth Errors | State Conflict Errors |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `/api/auth/register` | `POST` | `201 Created` | `400 Bad Request` (Invalid email/pass) | `400 Bad Request` (Duplicate email) | N/A |
+| `/api/auth/login` | `POST` | `200 OK` | `400 Bad Request` (Missing fields) | `401 Unauthorized` (Wrong password) | N/A |
+| `/api/campaigns` | `POST` | `201 Created` | `400 Bad Request` (Deadlines, budget) | `401 Unauthorized`, `403 Forbidden` (Creator) | N/A |
+| `/api/campaigns` | `GET` | `200 OK` | N/A (Paginated) | `401 Unauthorized` (Optional/Auth) | Hides private budget fields |
+| `/api/campaigns/:id` | `GET` | `200 OK` | `404 Not Found` (Non-existent ID) | `404 Not Found` (Rival brand isolation) | N/A |
+| `/api/campaigns/:id` | `PATCH` | `200 OK` | `400 Bad Request` (Illegal reduction) | `404 Not Found` (Rival brand) | `409 Conflict` (Invariant break) |
+| `/api/campaigns/:id/apply`| `POST` | `201 Created` | `400 Bad Request` (Deadline passed) | `403 Forbidden` (Brand cannot apply) | `409 Conflict` (Already applied) |
+| `/api/applications/:id/approve`| `PATCH` | `200 OK` | `400 Bad Request` (Slots/budget filled) | `404 Not Found` (Not your campaign) | `409 Conflict` (Wrong status) |
+| `/api/applications/:id/submit` | `POST` | `201 Created` | `400 Bad Request` (Invalid Instagram) | `403 Forbidden` (Not your application) | `400 Bad Request` (Duplicate URL) |
+| `/api/submissions/:id/approve` | `POST` | `200 OK` | `400 Bad Request` (Already settled) | `404 Not Found` (Not your campaign) | `409 Conflict` (Dual-click race) |
+| `/api/wallet` | `GET` | `200 OK` | N/A | `401 Unauthorized`, `403 Forbidden` (Brand) | N/A |
+| `/api/wallet/ledger` | `GET` | `200 OK` | `400 Bad Request` (Bad pagination) | `403 Forbidden` (Brand access blocked) | N/A |
+| `/api/fees/preview` | `GET` | `200 OK` | `400 Bad Request` (Negative or float) | `401 Unauthorized` (Unauthenticated) | N/A |
+
+---
+
+## 7. Live Cloud Database Integrity Audits (`wallet:check`)
 
 PayPost includes an executive reconciliation audit script ([walletCheck.js](file:///d:/PayPost/backend/src/scripts/walletCheck.js)) that executes direct integrity assertions against the live MongoDB Atlas cluster.
 
@@ -139,7 +253,7 @@ PayPost includes an executive reconciliation audit script ([walletCheck.js](file
 
 ---
 
-## 7. Manual Browser End-to-End Verification Protocol
+## 8. Manual Browser End-to-End Verification Protocol
 
 For evaluators and QA engineers conducting human walkthroughs in the browser (`http://localhost:5173`):
 
@@ -160,7 +274,7 @@ For evaluators and QA engineers conducting human walkthroughs in the browser (`h
 
 ---
 
-## 8. Command-Line Test Runner Reference
+## 9. Command-Line Test Runner Reference
 
 ### Test Commands Cheat-Sheet
 
