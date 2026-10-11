@@ -3,8 +3,9 @@ const Submission = require('../models/Submission');
 const Wallet = require('../models/Wallet');
 const LedgerEntry = require('../models/LedgerEntry');
 const User = require('../models/User');
-const { LEDGER_TYPE, LEDGER_DIRECTION } = require('../constants');
+const { LEDGER_TYPE, LEDGER_DIRECTION, NOTIFICATION_EVENTS } = require('../constants');
 const { calculateBreakdown } = require('./feeCalculator');
+const notificationService = require('./notificationService');
 
 /**
  * Settles an approved submission inside an active MongoDB session / transaction:
@@ -70,7 +71,19 @@ async function settleApprovedSubmission(session, { campaign, application, submis
 
   const balanceAfterPaise = updatedWallet.balancePaise;
 
-  // // TODO Phase 8: notify creator that payout was credited
+  const campaignTitle = campaign.title || 'Campaign';
+
+  // Notify creator that payout was credited
+  await notificationService.notify({
+    recipientId: creatorId,
+    event: NOTIFICATION_EVENTS.PAYOUT_CREDITED,
+    dedupeRefId: submission._id.toString(),
+    payload: {
+      campaignTitle,
+      netPayoutPaise: breakdown.netPayoutPaise
+    },
+    session
+  });
 
   // Extract brand and campaign details for ledger meta
   let brandName = '';
@@ -80,8 +93,6 @@ async function settleApprovedSubmission(session, { campaign, application, submis
     const brandUser = await User.findById(campaign.brand).select('name').lean();
     if (brandUser) brandName = brandUser.name;
   }
-
-  const campaignTitle = campaign.title || 'Campaign';
 
   // e) create a LedgerEntry with unique idempotencyKey
   // If duplicate idempotencyKey (payout already made), MongoDB throws E11000 and aborts the entire transaction.

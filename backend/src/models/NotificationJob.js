@@ -10,10 +10,13 @@ const notificationJobSchema = new mongoose.Schema({
   payload: { type: mongoose.Schema.Types.Mixed },
   status: { type: String, enum: Object.values(NOTIFICATION_STATUS), default: NOTIFICATION_STATUS.PENDING },
   scheduledFor: { type: Date, required: true },
+  heldForQuietHours: { type: Boolean, default: false },
+  processingStartedAt: { type: Date },
   sentAt: { type: Date },
   attempts: { type: Number, default: 0 },
   lastError: { type: String },
   skippedReason: { type: String },
+  providerRef: { type: String },
   dedupeKey: { type: String, unique: true, sparse: true }
 }, { timestamps: true });
 

@@ -2,11 +2,13 @@ const mongoose = require('mongoose');
 const Submission = require('../models/Submission');
 const Application = require('../models/Application');
 const Campaign = require('../models/Campaign');
-const { SUBMISSION_STATUS, APPLICATION_STATUS, CAMPAIGN_STATUS, MAX_REVISIONS } = require('../constants');
+const User = require('../models/User');
+const { SUBMISSION_STATUS, APPLICATION_STATUS, CAMPAIGN_STATUS, MAX_REVISIONS, NOTIFICATION_EVENTS } = require('../constants');
 const withTransaction = require('../utils/withTransaction');
 const { validateInstagramUrl } = require('../utils/instagram');
 const payoutService = require('./payoutService');
 const walletService = require('./walletService');
+const notificationService = require('./notificationService');
 
 class SubmissionService {
   /**
@@ -18,7 +20,7 @@ class SubmissionService {
     }
 
     const application = await Application.findById(applicationId).populate('campaign');
-    if (!application || application.creator.toString() !== creatorId) {
+    if (!application || application.creator.toString() !== creatorId.toString()) {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
@@ -118,7 +120,20 @@ class SubmissionService {
         throw err;
       }
 
-      // TODO Phase 8: notify brand of submission
+      const creator = await User.findById(creatorId).select('name').session(session);
+
+      // Notify brand of submission
+      await notificationService.notify({
+        recipientId: application.campaign.brand,
+        event: NOTIFICATION_EVENTS.SUBMISSION_SUBMITTED,
+        refId: submission._id,
+        payload: {
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title,
+          creatorName: creator?.name
+        },
+        session
+      });
 
       return submission;
     });
@@ -133,7 +148,7 @@ class SubmissionService {
     }
 
     const submission = await Submission.findById(submissionId);
-    if (!submission || submission.creator.toString() !== creatorId) {
+    if (!submission || submission.creator.toString() !== creatorId.toString()) {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
@@ -208,7 +223,21 @@ class SubmissionService {
         throw err;
       }
 
-      // TODO Phase 8: notify brand of resubmission
+      const campaign = await Campaign.findById(submission.campaign).select('title brand').session(session);
+      const creator = await User.findById(creatorId).select('name').session(session);
+
+      // Notify brand of resubmission
+      await notificationService.notify({
+        recipientId: campaign?.brand || submission.brand,
+        event: NOTIFICATION_EVENTS.SUBMISSION_RESUBMITTED,
+        refId: `${updatedSubmission._id}:${updatedSubmission.versions.length}`,
+        payload: {
+          campaignId: campaign?._id || submission.campaign,
+          campaignTitle: campaign?.title,
+          creatorName: creator?.name
+        },
+        session
+      });
 
       return updatedSubmission;
     });
@@ -223,7 +252,7 @@ class SubmissionService {
     }
 
     const submission = await Submission.findById(submissionId).populate('campaign').populate('application');
-    if (!submission || submission.brand.toString() !== brandId) {
+    if (!submission || submission.brand.toString() !== brandId.toString()) {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
@@ -280,14 +309,12 @@ class SubmissionService {
       });
       await application.save({ session });
 
-      // Call payout stub to shift reserved funds to paidOutPaise
+      // Call payout stub to shift reserved funds to paidOutPaise and notify creator
       await payoutService.settleApprovedSubmission(session, {
         campaign: submission.campaign,
         application,
         submission: updatedSubmission
       });
-
-      // TODO Phase 8: notify creator of approval
 
       return updatedSubmission;
     });
@@ -308,7 +335,7 @@ class SubmissionService {
     }
 
     const submission = await Submission.findById(submissionId);
-    if (!submission || submission.brand.toString() !== brandId) {
+    if (!submission || submission.brand.toString() !== brandId.toString()) {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
@@ -367,7 +394,21 @@ class SubmissionService {
         throw err;
       }
 
-      // TODO Phase 8: notify creator of revision request
+      // Notify creator of revision request
+      await notificationService.notify({
+        recipientId: submission.creator,
+        event: NOTIFICATION_EVENTS.SUBMISSION_REVISION_REQUESTED,
+        dedupeRefId: submissionId.toString(),
+        dedupeVersion: String(updatedSubmission.revisionCount),
+        payload: {
+          campaignTitle: campaign.title,
+          campaignId: campaign._id,
+          revisionCount: updatedSubmission.revisionCount,
+          note: note.trim(),
+          revisionDueAt
+        },
+        session
+      });
 
       return updatedSubmission;
     });
@@ -387,8 +428,8 @@ class SubmissionService {
       throw err;
     }
 
-    const submission = await Submission.findById(submissionId).populate('application');
-    if (!submission || submission.brand.toString() !== brandId) {
+    const submission = await Submission.findById(submissionId).populate('application').populate('campaign');
+    if (!submission || submission.brand.toString() !== brandId.toString()) {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
@@ -464,7 +505,18 @@ class SubmissionService {
         throw err;
       }
 
-      // TODO Phase 8: notify creator of rejection
+      // Notify creator of rejection
+      await notificationService.notify({
+        recipientId: submission.creator,
+        event: NOTIFICATION_EVENTS.SUBMISSION_REJECTED,
+        dedupeRefId: submissionId.toString(),
+        payload: {
+          campaignTitle: submission.campaign?.title || 'Campaign',
+          campaignId: submission.campaign?._id || submission.campaign,
+          note: note.trim()
+        },
+        session
+      });
 
       return updatedSubmission;
     });

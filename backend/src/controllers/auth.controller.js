@@ -18,8 +18,15 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required")
 });
 
+// Indian mobile number regex:
+// Accepts 10 digits starting with 6-9, or +91 followed by 10 digits starting with 6-9, or empty string to remove.
+const phoneRegex = /^(\+91)?[6-9]\d{9}$/;
+
 const prefsSchema = z.object({
-  phone: z.string().optional(),
+  phone: z.string().refine((val) => {
+    if (val === '' || val === null || val === undefined) return true;
+    return phoneRegex.test(val.trim());
+  }, { message: "Invalid Indian mobile number. Must be 10 digits starting with 6-9 or prefixed with +91" }).optional(),
   notificationPrefs: z.object({
     email: z.boolean().optional(),
     whatsapp: z.boolean().optional()
@@ -42,7 +49,13 @@ const signup = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const newUser = await User.create({ name, email, passwordHash, role, phone });
+    let normalizedPhone = phone;
+    if (phone && phone.trim()) {
+      const clean = phone.trim();
+      normalizedPhone = clean.startsWith('+91') ? clean : `+91${clean}`;
+    }
+
+    const newUser = await User.create({ name, email, passwordHash, role, phone: normalizedPhone });
     
     // Create wallet for creators at signup (brands get no wallet)
     if (newUser.role === 'creator') {
@@ -97,10 +110,18 @@ const updatePreferences = async (req, res, next) => {
     const { phone, notificationPrefs } = req.body;
     const user = req.user;
     
-    if (phone !== undefined) user.phone = phone;
+    if (phone !== undefined) {
+      if (phone === '' || phone === null) {
+        user.phone = undefined;
+      } else {
+        const clean = phone.trim();
+        user.phone = clean.startsWith('+91') ? clean : `+91${clean}`;
+      }
+    }
+
     if (notificationPrefs) {
-      if (notificationPrefs.email !== undefined) user.notificationPrefs.email = notificationPrefs.email;
-      if (notificationPrefs.whatsapp !== undefined) user.notificationPrefs.whatsapp = notificationPrefs.whatsapp;
+      if (notificationPrefs.email !== undefined) user.notificationPrefs.email = Boolean(notificationPrefs.email);
+      if (notificationPrefs.whatsapp !== undefined) user.notificationPrefs.whatsapp = Boolean(notificationPrefs.whatsapp);
     }
     
     await user.save();

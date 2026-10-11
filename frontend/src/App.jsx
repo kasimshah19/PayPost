@@ -11,6 +11,8 @@ import EditCampaign from './pages/EditCampaign';
 import CreatorDashboard from './pages/CreatorDashboard';
 import CreatorCampaignDetail from './pages/CreatorCampaignDetail';
 import CreatorWallet from './pages/CreatorWallet';
+import Notifications from './pages/Notifications';
+import NotificationSettings from './pages/NotificationSettings';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -34,6 +36,10 @@ function App() {
             <Route path="/creator" element={<ProtectedRoute allowedRoles={['creator']}><CreatorDashboard /></ProtectedRoute>} />
             <Route path="/creator/campaigns/:id" element={<ProtectedRoute allowedRoles={['creator']}><CreatorCampaignDetail /></ProtectedRoute>} />
             <Route path="/creator/wallet" element={<ProtectedRoute allowedRoles={['creator']}><CreatorWallet /></ProtectedRoute>} />
+
+            {/* Notification Routes (Both Roles) */}
+            <Route path="/notifications" element={<ProtectedRoute allowedRoles={['brand', 'creator']}><Notifications /></ProtectedRoute>} />
+            <Route path="/settings/notifications" element={<ProtectedRoute allowedRoles={['brand', 'creator']}><NotificationSettings /></ProtectedRoute>} />
           </Routes>
         </div>
       </Router>

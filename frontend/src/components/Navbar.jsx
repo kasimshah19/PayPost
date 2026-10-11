@@ -9,21 +9,35 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [walletBalance, setWalletBalance] = useState(null);
+  const [heldCount, setHeldCount] = useState(0);
 
   useEffect(() => {
-    const fetchBalance = () => {
-      if (user && user.role === 'creator') {
-        api.get('/wallet')
-          .then(res => setWalletBalance(res.data.balancePaise))
+    const fetchBalanceAndHeld = () => {
+      if (user) {
+        if (user.role === 'creator') {
+          api.get('/wallet')
+            .then(res => setWalletBalance(res.data.balancePaise))
+            .catch(() => {});
+        } else {
+          setWalletBalance(null);
+        }
+
+        api.get('/notifications/status')
+          .then(res => setHeldCount(res.data.heldCount || 0))
           .catch(() => {});
       } else {
         setWalletBalance(null);
+        setHeldCount(0);
       }
     };
 
-    fetchBalance();
-    window.addEventListener('wallet_updated', fetchBalance);
-    return () => window.removeEventListener('wallet_updated', fetchBalance);
+    fetchBalanceAndHeld();
+    window.addEventListener('wallet_updated', fetchBalanceAndHeld);
+    const interval = setInterval(fetchBalanceAndHeld, 10000);
+    return () => {
+      window.removeEventListener('wallet_updated', fetchBalanceAndHeld);
+      clearInterval(interval);
+    };
   }, [user, location.pathname]);
 
   const handleLogout = () => {
@@ -51,6 +65,33 @@ const Navbar = () => {
                 <MoneyText paise={walletBalance} />
               </Link>
             )}
+
+            {/* Notifications Link with Held Badge */}
+            <Link
+              to="/notifications"
+              className="relative text-sm text-gray-600 hover:text-indigo-600 font-medium flex items-center gap-1"
+              title="Notifications"
+            >
+              <span>Notifications</span>
+              {heldCount > 0 && (
+                <span 
+                  className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
+                  title={`${heldCount} notification(s) held for quiet hours`}
+                />
+              )}
+            </Link>
+
+            {/* Notification Settings Link */}
+            <Link
+              to="/settings/notifications"
+              className="text-gray-400 hover:text-gray-600"
+              title="Notification Settings"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Link>
 
             <span className="text-gray-700 text-sm">
               {user.name} 

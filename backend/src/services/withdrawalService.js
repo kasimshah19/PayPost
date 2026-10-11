@@ -2,9 +2,10 @@ const mongoose = require('mongoose');
 const Withdrawal = require('../models/Withdrawal');
 const Wallet = require('../models/Wallet');
 const LedgerEntry = require('../models/LedgerEntry');
-const { WITHDRAWAL_STATUS, LEDGER_TYPE, LEDGER_DIRECTION, MIN_WITHDRAWAL_PAISE } = require('../constants');
+const { WITHDRAWAL_STATUS, LEDGER_TYPE, LEDGER_DIRECTION, MIN_WITHDRAWAL_PAISE, NOTIFICATION_EVENTS } = require('../constants');
 const { ensureWallet } = require('./walletService');
 const withTransaction = require('../utils/withTransaction');
+const notificationService = require('./notificationService');
 
 /**
  * Masks a UPI ID: first 2 characters + '***' + the part after @
@@ -150,7 +151,17 @@ async function requestWithdrawal({ userId, amountPaise, upiId, clientKey }) {
         idempotencyKey: `withdrawal-hold:${withdrawal._id}`
       }], { session });
 
-      // TODO Phase 8: notify creator withdrawal requested
+      // Notify creator withdrawal requested
+      await notificationService.notify({
+        recipientId: userId,
+        event: NOTIFICATION_EVENTS.WITHDRAWAL_REQUESTED,
+        dedupeRefId: withdrawal._id.toString(),
+        payload: {
+          amountPaise,
+          maskedUpi: maskUpi(upiId)
+        },
+        session
+      });
 
       return {
         withdrawal: formatWithdrawal(withdrawal),
@@ -232,7 +243,17 @@ async function finalizeWithdrawal(withdrawalId, result) {
         { session }
       );
 
-      // TODO Phase 8: notify creator withdrawal succeeded
+      // Notify creator withdrawal succeeded
+      await notificationService.notify({
+        recipientId: updated.user,
+        event: NOTIFICATION_EVENTS.WITHDRAWAL_SUCCEEDED,
+        dedupeRefId: updated._id.toString(),
+        payload: {
+          amountPaise: updated.amountPaise,
+          maskedUpi: maskUpi(updated.payoutDestination?.accountNumber || updated.payoutDestination?.upiId)
+        },
+        session
+      });
       return updated;
     });
   } else {
@@ -284,7 +305,18 @@ async function finalizeWithdrawal(withdrawalId, result) {
         idempotencyKey: `withdrawal-reversal:${updated._id}`
       }], { session });
 
-      // TODO Phase 8: notify creator withdrawal failed
+      // Notify creator withdrawal failed
+      await notificationService.notify({
+        recipientId: updated.user,
+        event: NOTIFICATION_EVENTS.WITHDRAWAL_FAILED,
+        dedupeRefId: updated._id.toString(),
+        payload: {
+          amountPaise: updated.amountPaise,
+          maskedUpi: maskUpi(updated.payoutDestination?.accountNumber || updated.payoutDestination?.upiId),
+          reason: result.failureReason || 'Payout failed'
+        },
+        session
+      });
       return updated;
     });
   }

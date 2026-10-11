@@ -2,9 +2,11 @@ const mongoose = require('mongoose');
 const Application = require('../models/Application');
 const Campaign = require('../models/Campaign');
 const Submission = require('../models/Submission');
-const { CAMPAIGN_STATUS, APPLICATION_STATUS, ALLOWED_APPLICATION_TRANSITIONS } = require('../constants');
+const User = require('../models/User');
+const { CAMPAIGN_STATUS, APPLICATION_STATUS, ALLOWED_APPLICATION_TRANSITIONS, NOTIFICATION_EVENTS } = require('../constants');
 const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
+const notificationService = require('./notificationService');
 
 class ApplicationService {
   /**
@@ -41,71 +43,102 @@ class ApplicationService {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
-    const campaign = await Campaign.findById(campaignId);
-    if (!campaign) {
-      const err = new Error('Campaign not found'); err.status = 404; throw err;
-    }
-
-    if (campaign.status !== CAMPAIGN_STATUS.ACTIVE) {
-      const err = new Error('Campaign is not active'); err.status = 409; throw err;
-    }
-
-    if (new Date(campaign.applicationDeadline) < new Date()) {
-      const err = new Error('Application deadline has passed'); err.status = 409; throw err;
-    }
-
-    if (campaign.slots - campaign.approvedCount <= 0) {
-      const err = new Error('No slots left for this campaign'); err.status = 409; throw err;
-    }
-
-    const existingApp = await Application.findOne({ campaign: campaignId, creator: creatorId });
-
-    if (existingApp) {
-      if (existingApp.status === APPLICATION_STATUS.APPLIED || existingApp.status === APPLICATION_STATUS.APPROVED) {
-        const err = new Error('You have already applied to this campaign'); err.status = 409; throw err;
+    return await withTransaction(async (session) => {
+      const campaign = await Campaign.findById(campaignId).session(session);
+      if (!campaign) {
+        const err = new Error('Campaign not found'); err.status = 404; throw err;
       }
-      
-      // If withdrawn, check if they withdrew while 'applied'
-      if (existingApp.status === APPLICATION_STATUS.WITHDRAWN) {
-        // find the history entry where they withdrew
-        const withdrawEntry = existingApp.statusHistory.slice().reverse().find(h => h.to === APPLICATION_STATUS.WITHDRAWN);
-        if (withdrawEntry && withdrawEntry.from === APPLICATION_STATUS.APPLIED) {
-          // Allowed to re-apply
-          existingApp.status = APPLICATION_STATUS.APPLIED;
-          existingApp.pitch = pitch;
-          existingApp.statusHistory.push({
-            from: APPLICATION_STATUS.WITHDRAWN,
-            to: APPLICATION_STATUS.APPLIED,
-            by: creatorId,
-            note: 'Re-applied'
-          });
-          return await existingApp.save();
-        } else {
-          const err = new Error('You cannot re-apply after withdrawing from an approved slot'); err.status = 409; throw err;
+
+      if (campaign.status !== CAMPAIGN_STATUS.ACTIVE) {
+        const err = new Error('Campaign is not active'); err.status = 409; throw err;
+      }
+
+      if (new Date(campaign.applicationDeadline) < new Date()) {
+        const err = new Error('Application deadline has passed'); err.status = 409; throw err;
+      }
+
+      if (campaign.slots - campaign.approvedCount <= 0) {
+        const err = new Error('No slots left for this campaign'); err.status = 409; throw err;
+      }
+
+      const creator = await User.findById(creatorId).select('name').session(session);
+      const existingApp = await Application.findOne({ campaign: campaignId, creator: creatorId }).session(session);
+
+      if (existingApp) {
+        if (existingApp.status === APPLICATION_STATUS.APPLIED || existingApp.status === APPLICATION_STATUS.APPROVED) {
+          const err = new Error('You have already applied to this campaign'); err.status = 409; throw err;
         }
+        
+        // If withdrawn, check if they withdrew while 'applied'
+        if (existingApp.status === APPLICATION_STATUS.WITHDRAWN) {
+          const withdrawEntry = existingApp.statusHistory.slice().reverse().find(h => h.to === APPLICATION_STATUS.WITHDRAWN);
+          if (withdrawEntry && withdrawEntry.from === APPLICATION_STATUS.APPLIED) {
+            existingApp.status = APPLICATION_STATUS.APPLIED;
+            existingApp.pitch = pitch;
+            existingApp.statusHistory.push({
+              from: APPLICATION_STATUS.WITHDRAWN,
+              to: APPLICATION_STATUS.APPLIED,
+              by: creatorId,
+              note: 'Re-applied'
+            });
+            const saved = await existingApp.save({ session });
+
+            // Notify brand of re-application
+            await notificationService.notify({
+              recipientId: campaign.brand,
+              event: NOTIFICATION_EVENTS.APPLICATION_RECEIVED,
+              refId: saved._id,
+              payload: {
+                campaignId: campaign._id,
+                campaignTitle: campaign.title,
+                creatorName: creator?.name
+              },
+              session
+            });
+
+            return saved;
+          } else {
+            const err = new Error('You cannot re-apply after withdrawing from an approved slot'); err.status = 409; throw err;
+          }
+        }
+
+        if (existingApp.status === APPLICATION_STATUS.REJECTED || existingApp.status === APPLICATION_STATUS.CANCELLED) {
+          const err = new Error(`You cannot re-apply because your application was ${existingApp.status}`); err.status = 409; throw err;
+        }
+
+        const err = new Error('Invalid application state for re-applying'); err.status = 409; throw err;
       }
 
-      if (existingApp.status === APPLICATION_STATUS.REJECTED || existingApp.status === APPLICATION_STATUS.CANCELLED) {
-        const err = new Error(`You cannot re-apply because your application was ${existingApp.status}`); err.status = 409; throw err;
-      }
+      // New application
+      const app = new Application({
+        campaign: campaignId,
+        creator: creatorId,
+        pitch,
+        status: APPLICATION_STATUS.APPLIED,
+        statusHistory: [{
+          from: null,
+          to: APPLICATION_STATUS.APPLIED,
+          by: creatorId
+        }]
+      });
 
-      const err = new Error('Invalid application state for re-applying'); err.status = 409; throw err;
-    }
+      const savedApp = await app.save({ session });
 
-    // New application
-    const app = new Application({
-      campaign: campaignId,
-      creator: creatorId,
-      pitch,
-      status: APPLICATION_STATUS.APPLIED,
-      statusHistory: [{
-        from: null,
-        to: APPLICATION_STATUS.APPLIED,
-        by: creatorId
-      }]
+      // Notify brand of application received
+      await notificationService.notify({
+        recipientId: campaign.brand,
+        event: NOTIFICATION_EVENTS.APPLICATION_RECEIVED,
+        refId: savedApp._id,
+        payload: {
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          creatorName: creator?.name
+        },
+        session
+      });
+
+      return savedApp;
     });
-
-    return await app.save();
   }
 
   async withdrawApplication(applicationId, creatorId) {
@@ -140,6 +173,8 @@ class ApplicationService {
       }
 
       const oldStatus = application.status;
+      const campaign = await Campaign.findById(application.campaign).session(session);
+      const creator = await User.findById(creatorId).select('name').session(session);
 
       this._transition(application, APPLICATION_STATUS.WITHDRAWN, creatorId);
 
@@ -156,6 +191,23 @@ class ApplicationService {
       }
 
       await application.save({ session });
+
+      // Notify brand that application was withdrawn
+      if (campaign) {
+        await notificationService.notify({
+          recipientId: campaign.brand,
+          event: NOTIFICATION_EVENTS.APPLICATION_WITHDRAWN,
+          refId: `${application._id}withdrawn`,
+          payload: {
+            campaignId: campaign._id,
+            campaignTitle: campaign.title,
+            creatorName: creator?.name,
+            wasApproved: oldStatus === APPLICATION_STATUS.APPROVED
+          },
+          session
+        });
+      }
+
       return application;
     });
   }
@@ -173,7 +225,7 @@ class ApplicationService {
       }
 
       const campaign = application.campaign;
-      if (campaign.brand.toString() !== brandId) {
+      if (campaign.brand.toString() !== brandId.toString()) {
         const err = new Error('Not Found'); err.status = 404; throw err;
       }
 
@@ -210,7 +262,6 @@ class ApplicationService {
       );
 
       if (!updatedCampaign) {
-        // Find why it failed
         const currentCampaign = await Campaign.findById(campaign._id).session(session);
         if (currentCampaign.slots - currentCampaign.approvedCount <= 0) {
           const err = new Error('No slots left'); err.status = 409; throw err;
@@ -232,7 +283,19 @@ class ApplicationService {
       
       await application.save({ session });
       
-      // TODO Phase 8: notify creator of approval
+      // Notify creator of approval
+      await notificationService.notify({
+        recipientId: application.creator,
+        event: NOTIFICATION_EVENTS.APPLICATION_APPROVED,
+        refId: application._id,
+        payload: {
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          feePaise: fee,
+          submissionDeadline: campaign.submissionDeadline
+        },
+        session
+      });
 
       return { application, campaign: updatedCampaign };
     });
@@ -243,22 +306,34 @@ class ApplicationService {
       const err = new Error('Not Found'); err.status = 404; throw err;
     }
 
-    const application = await Application.findById(applicationId).populate('campaign');
-    if (!application || application.campaign.brand.toString() !== brandId) {
-      const err = new Error('Not Found'); err.status = 404; throw err;
-    }
+    return await withTransaction(async (session) => {
+      const application = await Application.findById(applicationId).populate('campaign').session(session);
+      if (!application || application.campaign.brand.toString() !== brandId) {
+        const err = new Error('Not Found'); err.status = 404; throw err;
+      }
 
-    if (application.status === APPLICATION_STATUS.APPROVED) {
-      const err = new Error('Approved creators cannot be removed'); err.status = 409; throw err;
-    }
+      if (application.status === APPLICATION_STATUS.APPROVED) {
+        const err = new Error('Approved creators cannot be removed'); err.status = 409; throw err;
+      }
 
-    this._transition(application, APPLICATION_STATUS.REJECTED, brandId, note);
-    
-    await application.save();
+      this._transition(application, APPLICATION_STATUS.REJECTED, brandId, note);
+      
+      await application.save({ session });
 
-    // TODO Phase 8: notify creator of rejection
+      // Notify creator of rejection
+      await notificationService.notify({
+        recipientId: application.creator,
+        event: NOTIFICATION_EVENTS.APPLICATION_REJECTED,
+        refId: application._id,
+        payload: {
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title
+        },
+        session
+      });
 
-    return application;
+      return application;
+    });
   }
 
   async listCampaignApplications(campaignId, brandId, statusFilter) {

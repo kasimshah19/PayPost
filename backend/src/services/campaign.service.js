@@ -2,10 +2,11 @@ const mongoose = require('mongoose');
 const Campaign = require('../models/Campaign');
 const Application = require('../models/Application');
 const Submission = require('../models/Submission');
-const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../constants');
+const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS, NOTIFICATION_EVENTS } = require('../constants');
 const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
 const { calculateBreakdown } = require('./feeCalculator');
+const notificationService = require('./notificationService');
 
 class CampaignService {
   async create(data, brandId) {
@@ -287,6 +288,10 @@ class CampaignService {
        const err = new Error('Submission deadline must be in the future'); err.status = 400; throw err;
     }
 
+    // Check if submission deadline was extended into the future
+    const isDeadlineExtended = updates.submissionDeadline &&
+      new Date(updates.submissionDeadline).getTime() > new Date(campaign.submissionDeadline).getTime();
+
     // Apply allowed fields
     const allowed = ['title', 'description', 'budgetPaise', 'perCreatorFeePaise', 'slots', 'applicationDeadline', 'submissionDeadline'];
     for (const key of allowed) {
@@ -295,7 +300,31 @@ class CampaignService {
       }
     }
 
-    return await campaign.save();
+    const savedCampaign = await campaign.save();
+
+    // If submission deadline moved later, notify all approved creators on this campaign
+    if (isDeadlineExtended) {
+      const approvedApps = await Application.find({
+        campaign: savedCampaign._id,
+        status: APPLICATION_STATUS.APPROVED
+      }).select('creator').lean();
+
+      for (const app of approvedApps) {
+        const timestampSuffix = new Date(savedCampaign.submissionDeadline).getTime();
+        await notificationService.notify({
+          recipientId: app.creator,
+          event: NOTIFICATION_EVENTS.CAMPAIGN_DEADLINE_EXTENDED,
+          refId: `${savedCampaign._id}:${timestampSuffix}`,
+          payload: {
+            campaignId: savedCampaign._id,
+            campaignTitle: savedCampaign.title,
+            newSubmissionDeadline: savedCampaign.submissionDeadline
+          }
+        });
+      }
+    }
+
+    return savedCampaign;
   }
 
   async cancel(id, cancelReason, brandId) {
@@ -305,7 +334,7 @@ class CampaignService {
     
     return await withTransaction(async (session) => {
       const campaign = await Campaign.findById(id).session(session);
-      if (!campaign || campaign.brand.toString() !== brandId) {
+      if (!campaign || campaign.brand.toString() !== brandId.toString()) {
         const err = new Error('Not Found'); err.status = 404; throw err;
       }
 
@@ -337,7 +366,7 @@ class CampaignService {
       campaign.cancelReason = cancelReason;
       campaign.cancelledAt = new Date();
 
-      // Find applications to cancel
+      // Find applications to cancel (applied or approved)
       const apps = await Application.find({
         campaign: id,
         status: { $in: [APPLICATION_STATUS.APPLIED, APPLICATION_STATUS.APPROVED] }
@@ -345,6 +374,7 @@ class CampaignService {
 
       let releasedPaise = 0;
       let releasedSlots = 0;
+      const affectedCreatorIds = [];
 
       for (const app of apps) {
         const oldStatus = app.status;
@@ -361,6 +391,7 @@ class CampaignService {
           releasedSlots += 1;
         }
 
+        affectedCreatorIds.push(app.creator);
         await app.save({ session });
       }
 
@@ -369,7 +400,19 @@ class CampaignService {
 
       await campaign.save({ session });
 
-      // TODO Phase 8: notify affected creators
+      // Notify EVERY creator whose application became cancelled
+      if (affectedCreatorIds.length > 0) {
+        await notificationService.notifyMany(affectedCreatorIds, {
+          event: NOTIFICATION_EVENTS.CAMPAIGN_CANCELLED,
+          refId: campaign._id,
+          payload: {
+            campaignId: campaign._id,
+            campaignTitle: campaign.title,
+            cancelReason
+          },
+          session
+        });
+      }
 
       return campaign;
     });

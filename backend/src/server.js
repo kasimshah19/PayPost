@@ -2,6 +2,7 @@ const app = require('./app');
 const connectDB = require('./config/db');
 const env = require('./config/env');
 const { startWithdrawalWorker } = require('./jobs/withdrawalWorker');
+const { startNotificationWorker } = require('./jobs/notificationWorker');
 
 const startServer = async () => {
   await connectDB();
@@ -9,6 +10,7 @@ const startServer = async () => {
     console.log(`Server running on port ${env.PORT}`);
   });
   startWithdrawalWorker();
+  startNotificationWorker();
 };
 
 startServer();
