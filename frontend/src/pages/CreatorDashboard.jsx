@@ -84,12 +84,35 @@ function CreatorDashboard() {
                 View Ledger &rarr;
               </Link>
             </div>
+            
             <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-4 mb-3">
               <div className="text-xs uppercase font-semibold text-emerald-800">Available Balance</div>
               <div className="text-2xl font-extrabold text-emerald-600 mt-1">
                 <MoneyText paise={wallet?.balancePaise ?? 0} />
               </div>
             </div>
+
+            {wallet?.heldPaise > 0 && (
+              <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-3 mb-3 flex items-center justify-between text-xs">
+                <span className="text-amber-800 font-medium">On Hold (Withdrawal):</span>
+                <span className="font-bold text-amber-900 font-mono"><MoneyText paise={wallet.heldPaise} /></span>
+              </div>
+            )}
+
+            {wallet?.activeWithdrawal && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-indigo-900">Withdrawal In Progress</span>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-200 text-indigo-900 uppercase">
+                    {wallet.activeWithdrawal.status}
+                  </span>
+                </div>
+                <div className="text-indigo-700 mt-1 text-[11px]">
+                  Processing <MoneyText paise={wallet.activeWithdrawal.amountPaise} /> to UPI
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center text-xs text-gray-500 pt-1">
               <span>Expected: <span className="font-semibold text-gray-700"><MoneyText paise={wallet?.expectedPaise ?? 0} /></span></span>
               <span>Lifetime: <span className="font-semibold text-gray-700"><MoneyText paise={wallet?.lifetimeEarnedPaise ?? 0} /></span></span>

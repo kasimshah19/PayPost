@@ -28,6 +28,7 @@ MongoDB, Express, React, Node.js (MERN) + Tailwind CSS + Vite
 - **Abandoned Revision Deadlock Resolution:** Overdue revisions past the dynamic 48-hour deadline do not block campaign cancellation, preventing infinite escrow lock.
 - **Fee Snapshotting:** Approved creator fees snapshot `Campaign.perCreatorFeePaise` at approval time (`Application.feePaise`); subsequent edits to campaign fees never alter contracted earnings.
 - **Multi-Tenant Privacy:** Unauthorized campaign queries return `404 Not Found` (never `403 Forbidden`) to prevent resource enumeration attacks.
+- **No Withdrawal Fee:** Withdrawals carry zero platform fee or gateway processing fee (100% of the requested amount in paise is disbursed to the creator's payout destination).
 
 ## 2. Key decisions and why
 - **Atomic Conditional Updates over Read-Then-Write:** Approval operations execute in a single atomic MongoDB query (`findOneAndUpdate` with `$expr` budget check and `approvedCount < slots`), eliminating TOCTOU race conditions and overbooking.
@@ -64,8 +65,8 @@ MongoDB, Express, React, Node.js (MERN) + Tailwind CSS + Vite
 ## Tests & Integrity Audits
 > 🧪 For comprehensive details on testing tiers, Jest suites, property fuzzing, and cloud database audits, see **[TESTING.md](TESTING.md)**.
 
-- **Unit & Integration Tests:** Run `npm test` inside the `backend` folder (128/128 tests passing across all 9 test suites).
-- **Ledger Parity Audit:** Run `npm run wallet:check` inside the `backend` folder to verify 5 automated database integrity assertions against real MongoDB data.
+- **Unit & Integration Tests:** Run `npm test` inside the `backend` folder (149/149 tests passing across all 10 test suites).
+- **Ledger Parity Audit:** Run `npm run wallet:check` inside the `backend` folder to verify 8 automated database integrity assertions against real MongoDB data.
 - **Wallet Backfill Script:** Run `npm run wallet:backfill` to safely migrate legacy records.
 
 ## AI prompts / chat logs

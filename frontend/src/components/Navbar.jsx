@@ -11,13 +11,19 @@ const Navbar = () => {
   const [walletBalance, setWalletBalance] = useState(null);
 
   useEffect(() => {
-    if (user && user.role === 'creator') {
-      api.get('/wallet')
-        .then(res => setWalletBalance(res.data.balancePaise))
-        .catch(() => {});
-    } else {
-      setWalletBalance(null);
-    }
+    const fetchBalance = () => {
+      if (user && user.role === 'creator') {
+        api.get('/wallet')
+          .then(res => setWalletBalance(res.data.balancePaise))
+          .catch(() => {});
+      } else {
+        setWalletBalance(null);
+      }
+    };
+
+    fetchBalance();
+    window.addEventListener('wallet_updated', fetchBalance);
+    return () => window.removeEventListener('wallet_updated', fetchBalance);
   }, [user, location.pathname]);
 
   const handleLogout = () => {

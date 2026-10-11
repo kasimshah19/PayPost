@@ -2,8 +2,16 @@ const mongoose = require('mongoose');
 const Wallet = require('../models/Wallet');
 const LedgerEntry = require('../models/LedgerEntry');
 const Application = require('../models/Application');
-const { APPLICATION_STATUS, LEDGER_TYPE } = require('../constants');
+const Withdrawal = require('../models/Withdrawal');
+const { APPLICATION_STATUS, LEDGER_TYPE, WITHDRAWAL_STATUS } = require('../constants');
 const { calculateBreakdown } = require('./feeCalculator');
+
+function maskUpi(upiId) {
+  if (!upiId || typeof upiId !== 'string') return '';
+  const parts = upiId.split('@');
+  if (parts.length !== 2) return upiId;
+  return `${parts[0].slice(0, 2)}***@${parts[1]}`;
+}
 
 /**
  * Ensures a wallet exists for the given user (idempotent find-or-create).
@@ -44,6 +52,10 @@ async function ensureWallet(userId, session = null) {
  * - heldPaise: Locked balance (for withdrawals, Phase 7)
  * - lifetimeEarnedPaise: Total payout_credit amounts ever credited
  * - expectedPaise: Net earnings expected from applications currently in 'approved' status (not yet completed/paid)
+ * - totalWithdrawnPaise: Sum of succeeded withdrawals
+ * - activeWithdrawal: { id, amountPaise, status, requestedAt } or null
+ * - lastUpiMasked: Masked UPI ID of latest withdrawal
+ * - lastUpiId: Unmasked UPI ID of latest withdrawal (for form prefill)
  */
 async function getWalletSummary(userId) {
   const wallet = await ensureWallet(userId);
@@ -80,11 +92,51 @@ async function getWalletSummary(userId) {
     }
   }
 
+  // Total withdrawn paise (sum of succeeded withdrawals)
+  const withdrawnAgg = await Withdrawal.aggregate([
+    {
+      $match: {
+        user: new mongoose.Types.ObjectId(userId),
+        status: WITHDRAWAL_STATUS.SUCCEEDED
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: '$amountPaise' }
+      }
+    }
+  ]);
+  const totalWithdrawnPaise = withdrawnAgg.length > 0 ? withdrawnAgg[0].total : 0;
+
+  // Active withdrawal (pending or processing)
+  const activeDoc = await Withdrawal.findOne({
+    user: userId,
+    status: { $in: [WITHDRAWAL_STATUS.PENDING, WITHDRAWAL_STATUS.PROCESSING] }
+  }).sort({ createdAt: -1 }).lean();
+
+  const activeWithdrawal = activeDoc ? {
+    id: activeDoc._id,
+    _id: activeDoc._id,
+    amountPaise: activeDoc.amountPaise,
+    status: activeDoc.status,
+    requestedAt: activeDoc.requestedAt
+  } : null;
+
+  // Most recent withdrawal for UPI prefilling
+  const latestDoc = await Withdrawal.findOne({ user: userId }).sort({ createdAt: -1 }).lean();
+  const lastUpiId = latestDoc?.payoutDestination?.upiId || null;
+  const lastUpiMasked = lastUpiId ? maskUpi(lastUpiId) : null;
+
   return {
     balancePaise: wallet.balancePaise,
     heldPaise: wallet.heldPaise,
     lifetimeEarnedPaise,
-    expectedPaise
+    expectedPaise,
+    totalWithdrawnPaise,
+    activeWithdrawal,
+    lastUpiMasked,
+    lastUpiId
   };
 }
 
@@ -112,6 +164,17 @@ async function getLedgerEntries(userId, { page = 1, limit = 20, type = null } = 
       .lean()
   ]);
 
+  // Join withdrawal status for withdrawal_hold and withdrawal_reversal entries
+  const withdrawalIds = rawEntries
+    .filter(e => e.refType === 'withdrawal' && e.refId)
+    .map(e => e.refId);
+
+  let statusMap = new Map();
+  if (withdrawalIds.length > 0) {
+    const ws = await Withdrawal.find({ _id: { $in: withdrawalIds } }, 'status').lean();
+    statusMap = new Map(ws.map(w => [String(w._id), w.status]));
+  }
+
   const entries = rawEntries.map(e => ({
     id: e._id,
     _id: e._id,
@@ -125,7 +188,8 @@ async function getLedgerEntries(userId, { page = 1, limit = 20, type = null } = 
     refId: e.refId,
     meta: e.meta,
     breakdown: e.meta?.breakdown || null,
-    campaignTitle: e.meta?.campaignTitle || ''
+    campaignTitle: e.meta?.campaignTitle || '',
+    withdrawalStatus: e.refType === 'withdrawal' && e.refId ? (statusMap.get(String(e.refId)) || null) : null
   }));
 
   return {
@@ -140,5 +204,6 @@ async function getLedgerEntries(userId, { page = 1, limit = 20, type = null } = 
 module.exports = {
   ensureWallet,
   getWalletSummary,
-  getLedgerEntries
+  getLedgerEntries,
+  maskUpi
 };

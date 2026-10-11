@@ -9,6 +9,7 @@ const applicationRoutes = require('./routes/application.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const feeRoutes = require('./routes/fee.routes');
+const withdrawalRoutes = require('./routes/withdrawal.routes');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/fees', feeRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api', applicationRoutes);
