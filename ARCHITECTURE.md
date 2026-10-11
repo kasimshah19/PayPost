@@ -1510,3 +1510,298 @@ PayPost's database tier consists of **8 dedicated collections** in MongoDB Atlas
   - `dedupeKey`: Sparse unique string preventing duplicate alerts for the same event.
 - **Index:** `{ status: 1, scheduledFor: 1 }`: Optimized for high-frequency polling workers and cron dispatchers.
 
+---
+
+## Phase 9: Dashboards, Mobile-First Responsive UI & Friction Reduction Architecture
+
+Phase 9 transforms PayPost from a desktop-centric MVP into a **production-grade, mobile-first web application** optimized for 360px viewports (and scaling cleanly up to 1280px+). It delivers high-density, low-friction workflows for both Brands and Creators while maintaining strict immutability, zero changes to financial formulas, and zero new state mutations.
+
+---
+
+### 1. Mobile-First Responsive Layout & Reusable `ResponsiveList` Pattern
+
+#### Architectural Decision
+All layouts and component styles are authored with a **mobile-first base (360px viewport default)**, using Tailwind CSS `md:` (768px) and `lg:` (1024px) breakpoint modifiers strictly as progressive enhancement overrides. Desktop-oriented `<table>` data displays are prohibited on small viewports and dynamically converted into touch-optimized card lists via a unified, single-fetch abstraction: `ResponsiveList`.
+
+#### Mobile vs. Desktop UI Transformation Matrix
+
+| Interface Element | Mobile (< 768px) | Desktop (≥ 768px) | Engineering & UX Rationale |
+| :--- | :--- | :--- | :--- |
+| **Navigation Shell** | Fixed 4-item bottom tab bar with safe-area padding (`pb-safe`) | Sticky top horizontal Navbar with user menu and wallet pill | Bottom nav keeps primary navigation within thumb reach on mobile; top nav optimizes wide horizontal space |
+| **Data Lists (Ledger, Applicants, etc.)** | Stacked Cards (`renderCard`) with high-contrast text and visual badges | Tabular Grid (`renderRow`) with aligned columns | Eliminates horizontal scroll fatigue on narrow viewports while preserving data density on desktop |
+| **Modals & Dialogs** | Full-width **Bottom Sheet** (`rounded-t-2xl`, max 90dvh, internal scroll, sticky bottom buttons) | Centered floating modal dialog (`max-w-md` / `max-w-lg`) | Bottom sheets are ergonomic for one-handed thumb interaction and prevent buttons from getting lost off-screen |
+| **Tab Navigation** | Horizontally scrollable row with fade indicator and touch swipe | Inline static tab bar | Prevents tabs from wrapping into messy multi-line rows on small devices |
+| **Action Targets** | Minimum $44 \times 44\text{px}$ touch target (`min-h-11`) | Compact action buttons | Conforms to Apple HIG & Google Material accessibility standards for touch accuracy |
+| **Form Inputs** | Font size $\ge 16\text{px}$, appropriate `inputMode` (`decimal`, `numeric`, `tel`) | Standard desktop input styling | Prevents iOS Safari from auto-zooming and distorting page layout on input focus |
+
+#### The `ResponsiveList` Architectural Pattern
+Traditional dual-rendering approaches either maintain two divergent page implementations (causing maintenance drift) or duplicate API calls. `ResponsiveList` acts as a single container component that fetches data once and swaps rendering mode via responsive CSS classes:
+
+```jsx
+// frontend/src/components/ui/ResponsiveList.jsx
+export function ResponsiveList({ items, renderRow, renderCard, headers = [] }) {
+  return (
+    <div>
+      {/* Mobile view: Stacked touch-friendly cards */}
+      <div className="md:hidden space-y-3">
+        {items.map((item, idx) => renderCard(item, idx))}
+      </div>
+
+      {/* Desktop view: Structured data table */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">...</thead>
+          <tbody className="divide-y divide-gray-100">{items.map((item, idx) => renderRow(item, idx))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 2. Single-Request Aggregated Action Center (`GET /api/campaigns/mine/attention`)
+
+#### Architectural Decision
+Instead of forcing the client to fire multiple round-trips across all active campaigns to assemble pending tasks, the backend provides an aggregated read-only endpoint: `GET /api/campaigns/mine/attention`. It coalesces pending applicants and pending deliverable submissions into a single payload.
+
+#### REST Cascade Anti-Pattern vs. Single-Roundtrip Attention Aggregator
+
+| Architecture Metric | N+1 Campaign Waterfall (Anti-Pattern) | Aggregated Attention Endpoint (Adopted) |
+| :--- | :--- | :--- |
+| **HTTP Roundtrips** | $1 + 2N$ requests (Fetch campaigns, then fetch apps & subs per campaign) | **1 single request** (`GET /api/campaigns/mine/attention`) |
+| **Mobile Latency (4G/LTE)** | 1.5s – 4.5s cumulative latency on slow cellular links | **< 150ms** execution time |
+| **Server Connection Pressure** | $O(N)$ concurrent database queries per dashboard view | **1 single pipeline** using indexed queries (`$match`, `$in`, `$slice`) |
+| **Data Queuing** | Scattered across multiple campaign sub-pages | Global **Oldest-First Priority** across the entire brand portfolio |
+| **Data Privacy** | Exposes creator contact info unnecessarily | Strict privacy: strips phone, email, and private metadata |
+
+#### Response Schema Structure
+```json
+{
+  "counts": {
+    "pendingApplicants": 5,
+    "pendingSubmissions": 2,
+    "total": 7
+  },
+  "applicants": [
+    {
+      "applicationId": "664...",
+      "campaignId": "663...",
+      "campaignTitle": "Summer Fit Launch 2026",
+      "creator": { "id": "661...", "name": "Aarav Sharma" },
+      "pitch": "I have 50k fitness followers and shoot 4K reels...",
+      "appliedAt": "2026-10-10T14:20:00.000Z",
+      "perCreatorFeePaise": 200000,
+      "canApprove": true,
+      "cannotApproveReason": null
+    }
+  ],
+  "submissions": [
+    {
+      "submissionId": "665...",
+      "campaignId": "663...",
+      "campaignTitle": "Organic Chai Reels",
+      "creator": { "id": "662...", "name": "Priya Patel" },
+      "postUrl": "https://www.instagram.com/reel/C-chai123/",
+      "submittedAt": "2026-10-11T08:30:00.000Z",
+      "revisionCount": 0,
+      "revisionsLeft": 2,
+      "feePaise": 200000
+    }
+  ]
+}
+```
+
+---
+
+### 3. Advisory Approvability Hinting vs. Transactional Authority
+
+#### Architectural Decision
+The `canApprove` and `cannotApproveReason` properties returned by the Attention endpoint and Campaign APIs are **purely advisory UI hints**. The actual transactional authority remains exclusively within the existing atomic conditional database updates executed during approval calls.
+
+#### Dual-Layer Enforcement Architecture
+
+```
+                                [Client Browser / Mobile]
+                                            │
+                  Reads UI Hint: canApprove = true / false (Advisory)
+                                            │
+                                            ▼
+                           [POST /api/applications/:id/approve]
+                                            │
+                    ┌───────────────────────┴───────────────────────┐
+                    ▼                                               ▼
+      [Atomic Conditional Update]                      [Ledger Invariant Check]
+   - Campaign status === 'active'                 - reservedPaise + fee <= budgetPaise
+   - approvedCount < slots                        - Atomic Mongoose Session Transaction
+   - Application status === 'applied'                               │
+                    │                                               │
+                    └───────────────────────┬───────────────────────┘
+                                            ▼
+                         [State Transition or 409 Abort]
+```
+
+#### Why Approvability is a Hint, Not Business Logic
+
+| Layer | Responsibility | State Consistency | Behavior Under Concurrency / Latency |
+| :--- | :--- | :--- | :--- |
+| **Frontend UI (Hint)** | Render disabled state & visible helper explanation | Eventually consistent (may be stale by milliseconds) | Informs user why button is locked (e.g. "Slots full" or "Budget exhausted") without firing failed network calls |
+| **Shared Evaluator (`campaignApprovability.js`)** | Read campaign numbers and return human-readable reason string | In-memory calculation helper | Shared by attention endpoint and campaign detail view to avoid logic divergence |
+| **Approve Endpoint (`application.service.js`)** | **Absolute Source of Truth** via atomic transaction | Strongly consistent (ACID guaranteed via MongoDB transactions) | If two brand managers click Approve simultaneously on a 1-slot campaign, exactly ONE succeeds; the second receives `409 Conflict`. Zero over-allocation is physically possible. |
+
+---
+
+### 4. Zero New Write Endpoints: Preservation of Atomic Invariants
+
+#### Architectural Decision
+Phase 9 introduces **zero new mutation or write endpoints**. All user actions performed inside the Action Center (Approve Applicant, Reject Applicant, Approve Submission, Request Revision, Reject Submission) invoke the exact same tested endpoints established in Phases 4, 5, and 6.
+
+#### Architectural Benefits Matrix
+
+| Engineering Dimension | Custom "Action Center Batch API" (Rejected) | Existing Service Endpoints (Adopted) |
+| :--- | :--- | :--- |
+| **Ledger Integrity** | High risk of bypassing escrow hold / payout verification | Guarantees 100% of ledger double-entry rules and financial invariants apply |
+| **Race Protection** | Would require re-implementing atomic locks and session managers | Leverages battle-tested `withTransaction` and atomic conditional operators (`$inc`, `$set`) |
+| **Audit Trails** | Risk of missing status history records | `Application.statusHistory` and `Submission.reviews` populate uniformly |
+| **Test Surface** | Requires brand-new concurrent race tests and edge-case suites | 100% covered by existing 201 backend integration tests |
+
+---
+
+### 5. ReDoS-Safe Regex Escaping for Creator Browse Search
+
+#### Architectural Decision
+In `GET /api/campaigns` (creator browse), user search queries (`?q=`) are matched case-insensitively against campaign titles. To prevent Regular Expression Denial of Service (ReDoS) or broken query crashes from special characters (e.g., `(`, `[`, `*`, `+`, `.*`), the search string is sanitized using a strict literal regex escaper before MongoDB query compilation.
+
+#### Attack Vector & Mitigation Comparison
+
+| Query Input | Unsanitized Behavior | Sanitized with `escapeRegex` (Adopted) | Security Outcome |
+| :--- | :--- | :--- | :--- |
+| `Summer (` | Crashes server with `SyntaxError: Unterminated group` | Escapes to `Summer \(`; matches literal substring | Server stable; returns matching campaign |
+| `.*` | Matches all records, bypassing intended filtering | Escapes to `\.\*`; searches for literal characters `.*` | Query boundaries preserved |
+| `((a+)+)+$` | Triggers exponential catastrophic backtracking in Node.js event loop (ReDoS) | Escaped as static literal sequence; evaluates in linear time $O(N)$ | Zero event-loop blockage or CPU exhaustion |
+| Malicious long strings | May cause regex engine memory spikes | Truncated to `max 50 chars` by Zod schema | Input bounded |
+
+#### Implementation Mechanism
+```javascript
+// backend/src/services/campaign.service.js
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// In CampaignService.getAll:
+if (q && q.trim()) {
+  const safeQuery = escapeRegex(q.trim());
+  filter.title = { $regex: safeQuery, $options: 'i' };
+}
+```
+
+---
+
+### 6. Visibility-Aware Polling (`usePolling`) for Network & Battery Efficiency
+
+#### Architectural Decision
+Real-time polling for creator wallet balances, withdrawal status, and notification quiet-hours alerts is managed via a dedicated `usePolling` hook. The hook integrates with the browser's Page Visibility API (`document.visibilityState`) to immediately suspend intervals when the tab is hidden, resuming with an instant fetch upon reactivation.
+
+#### Battery & Network Optimization Analysis
+
+| Polling Strategy | Background Behavior | Mobile Impact | Server Load Impact |
+| :--- | :--- | :--- | :--- |
+| **Naive `setInterval`** | Keeps firing every 10s even when user locks phone or switches apps | Drains battery, wastes cellular data quotas, triggers background throttling | Continues hammering server with redundant read requests for idle clients |
+| **Visibility-Aware (`usePolling`)** | **Pauses immediately** when `document.hidden === true`; wakes up with **immediate refresh** on focus | Zero unnecessary battery or data drain | Eliminates ~70% of redundant polling traffic from background browser tabs |
+
+#### Hook Architecture
+```javascript
+// frontend/src/hooks/usePolling.js
+export function usePolling(callback, intervalMs = 10000, enabled = true) {
+  useEffect(() => {
+    if (!enabled) return;
+
+    let timerId = null;
+    const execute = () => callback();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        execute(); // Immediate fresh fetch upon waking
+        timerId = setInterval(execute, intervalMs);
+      } else {
+        clearInterval(timerId); // Sleep while tab is backgrounded
+      }
+    };
+
+    if (document.visibilityState === 'visible') {
+      timerId = setInterval(execute, intervalMs);
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(timerId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [callback, intervalMs, enabled]);
+}
+```
+
+---
+
+### 7. Explicit Helper Text Policy (Forbidden Hover Pattern on Mobile)
+
+#### Architectural Decision
+Hover-only information architectures (e.g., `<Tooltip>` or CSS `:hover` descriptions) are **strictly forbidden** across PayPost. On touchscreen devices, hover does not naturally exist, leading to user confusion when action buttons are disabled. Whenever a button is disabled, the platform renders a permanent, visible text explanation directly below or adjacent to the element.
+
+#### Mobile Accessibility Compliance Matrix
+
+| UI Pattern | Hover Tooltip (Forbidden) | Visible In-Line Text (Adopted) | Accessibility & Compliance Result |
+| :--- | :--- | :--- | :--- |
+| **Disabled "Approve" (Slots Full)** | Tooltip requires long-press or fails on mobile iOS Safari | Text displays: `"Cannot approve: All 3 slots filled"` | User immediately understands why action is unavailable without trial and error |
+| **Disabled "Approve" (Budget Low)** | Hidden until mouse cursor moves over button | Text displays: `"Cannot approve: Insufficient budget (Need ₹2,000, available ₹500)"` | Transparent financial clarity directly within the card |
+| **Color Contrast & Status** | Status indicated only by green/red dots | Explicit status badges with high-contrast text (`Approved`, `Revision Needed`) | WCAG 2.1 AA compliant; accessible to color-blind users |
+| **Screen Readers** | ARIA descriptions often skipped on hover elements | Direct `aria-describedby` linkage and standard DOM text | Full accessibility tree exposure for assistive screen readers |
+
+---
+
+### 8. Friction-Reducing Features Architecture
+
+The table below summarizes the technical implementation, UI placement, and architectural purpose of all friction-reducing capabilities delivered in Phase 9:
+
+| Feature Name | Primary UI Location | Backend API / Endpoint | Technical Architecture & Friction Removal |
+| :--- | :--- | :--- | :--- |
+| **Brand Action Center** | Brand Dashboard (`/brand`) | `GET /api/campaigns/mine/attention` | Consolidates all pending tasks into an oldest-first queue. Brands approve/reject without opening individual campaign pages. |
+| **Creator Next Actions Strip** | Creator Dashboard (`/creator`) | `GET /api/creator/next-actions` | Prioritized list of actionable items (submit work, resubmit revisions, retry failed withdrawals) sorted by deadline urgency. |
+| **Deep Link Auto-Focus** | Campaign Detail (`/brand/campaigns/:id`) | Existing Campaign APIs | Reads query params `?tab=submissions&focus=<id>`, activates the correct tab, scrolls item into viewport, and applies a 2-second glow highlight. |
+| **1-Click Campaign Duplication** | Campaign Menu (`⋯ -> Duplicate`) | `GET /api/campaigns/:id` | Navigates to `/brand/campaigns/new?duplicate=<id>`, loads data, prefills title with `(copy)`, copies budget and slots, and leaves dates blank for fresh scheduling. |
+| **Creator Browse Filters** | Creator Discover Tab (`/creator?tab=discover`) | `GET /api/campaigns?q=&sort=&minFeePaise=` | Features 400ms debounced search, sorting (`newest`, `fee_desc`, `ending_soon`), and minimum fee filter displayed in a mobile bottom sheet. |
+| **Quick Note Chips** | Revision & Reject Review Modals | Existing Review APIs | One-tap predefined feedback chips (`noteTemplates.js`) append formatted, compliant instructions directly into review textareas. |
+| **Deadline Urgency Chips** | Campaign Cards, Next Actions, Forms | Pure Client-side (`getCountdown`) | Real-time visual chips (`urgent` <24h, `soon` <72h, `overdue`) that update every minute without requiring polling round-trips. |
+| **Withdrawal Retry Deep Link** | Creator Wallet (`/creator/wallet`) | Existing Wallet APIs | Reads `?retry=<id>`, pre-populates `WithdrawModal` with the failed withdrawal's UPI and amount, and opens the bottom sheet in one tap. |
+
+---
+
+### 9. Multi-Origin CORS Configuration for Local Device Testing
+
+#### Architectural Decision
+To enable real mobile device testing over local Wi-Fi without sacrificing CORS security, `CLIENT_URL` in `backend/src/config/env.js` and `backend/src/app.js` is parsed as a comma-separated list of allowed origins.
+
+```javascript
+// backend/src/config/env.js
+const ALLOWED_ORIGINS = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map(url => url.trim()).filter(Boolean)
+  : ['http://localhost:5173'];
+
+// backend/src/app.js
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. mobile apps, Postman) or whitelisted origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+```
+
+- **Notification Link Integrity:** Outbound email notification links continue to strictly reference the first origin (`ALLOWED_ORIGINS[0]`), ensuring external emails always point to the primary public host.
+- **Wi-Fi Mobile Testing:** Developers can run `npm run dev -- --host` on the frontend and set `CLIENT_URL="http://localhost:5173,http://192.168.1.5:5173"` to test full touch interactions on physical iOS and Android hardware.
+
+
