@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import api from '../api/axios';
 import { rupeesToPaise, paiseToRupees } from '../utils/money';
 import { toInputValue, fromInputValue } from '../utils/date';
+import MoneyText from './MoneyText';
+import FeeBreakdown from './FeeBreakdown';
 
 const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => {
   const [formData, setFormData] = useState({
@@ -14,6 +17,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
   });
 
   const [errors, setErrors] = useState({});
+  const [feePreview, setFeePreview] = useState(null);
 
   useEffect(() => {
     if (initialData) {
@@ -68,6 +72,24 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
 
   const showWarning = slots > 0 && maxPossible < slots;
 
+  useEffect(() => {
+    if (!feePaise || feePaise <= 0) {
+      setFeePreview(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get('/fees/preview', { params: { feePaise } });
+        setFeePreview(res.data);
+      } catch (err) {
+        setFeePreview(null);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [feePaise]);
+
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border max-w-2xl">
       {errors.form && <div className="bg-red-100 text-red-700 p-3 rounded mb-6 text-sm">{errors.form}</div>}
@@ -104,6 +126,17 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
             <input required type="number" step="1" name="perCreatorFeeRupees" value={formData.perCreatorFeeRupees} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
             {errors.perCreatorFeePaise && <p className="text-red-500 text-xs mt-1">{errors.perCreatorFeePaise}</p>}
           </div>
+
+          {feePreview && (
+            <div className="col-span-2 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3 text-xs text-gray-700">
+              <p className="font-medium text-gray-800">
+                You pay <MoneyText paise={feePreview.grossFeePaise} /> per creator. Platform fee, GST and TDS are deducted from the creator's side.
+              </p>
+              <div className="mt-2">
+                <FeeBreakdown breakdown={feePreview} compact={true} isCreator={false} showExpandToggle={true} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div>

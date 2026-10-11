@@ -35,11 +35,21 @@ const submissionSchema = new mongoose.Schema({
   reviews: [reviewSchema],
   decidedAt: { type: Date },
   payoutBreakdown: {
-    grossFeePaise: { type: Number, validate: Number.isInteger },
-    platformFeePaise: { type: Number, validate: Number.isInteger },
-    gstPaise: { type: Number, validate: Number.isInteger },
-    tdsPaise: { type: Number, validate: Number.isInteger },
-    netPayoutPaise: { type: Number, validate: Number.isInteger }
+    type: new mongoose.Schema({
+      grossFeePaise: { type: Number, validate: Number.isInteger },
+      platformFeePaise: { type: Number, validate: Number.isInteger },
+      gstPaise: { type: Number, validate: Number.isInteger },
+      payoutBeforeTdsPaise: { type: Number, validate: Number.isInteger },
+      tdsPaise: { type: Number, validate: Number.isInteger },
+      netPayoutPaise: { type: Number, validate: Number.isInteger },
+      rates: {
+        platformPercent: { type: Number },
+        gstPercent: { type: Number },
+        tdsPercent: { type: Number }
+      },
+      formulaVersion: { type: Number, default: 1 }
+    }, { _id: false }),
+    default: undefined
   }
 }, { timestamps: true });
 

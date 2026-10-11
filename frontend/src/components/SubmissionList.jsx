@@ -4,6 +4,7 @@ import StatusBadge from './StatusBadge';
 import MoneyText from './MoneyText';
 import Spinner from './Spinner';
 import ConfirmModal from './ConfirmModal';
+import FeeBreakdown from './FeeBreakdown';
 import { validateInstagramUrl } from '../utils/instagram';
 import { formatDateIST, formatCountdown } from '../utils/date';
 
@@ -22,6 +23,7 @@ function SubmissionList({ campaignId, onStatusChange }) {
 
   // Modals state
   const [approveTarget, setApproveTarget] = useState(null);
+  const [approveBreakdown, setApproveBreakdown] = useState(null);
   const [revisionTarget, setRevisionTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
 
@@ -45,6 +47,16 @@ function SubmissionList({ campaignId, onStatusChange }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (approveTarget?.feePaise) {
+      api.get('/fees/preview', { params: { feePaise: approveTarget.feePaise } })
+        .then(res => setApproveBreakdown(res.data))
+        .catch(() => setApproveBreakdown(null));
+    } else {
+      setApproveBreakdown(null);
+    }
+  }, [approveTarget]);
 
   // 1. APPROVE ACTION
   const handleApprove = async () => {
@@ -256,6 +268,18 @@ function SubmissionList({ campaignId, onStatusChange }) {
                   </div>
                 </div>
 
+                {/* Approved submission fee breakdown (collapsed by default) */}
+                {sub.status === 'approved' && sub.payoutBreakdown && (
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-2.5">
+                    <FeeBreakdown
+                      breakdown={sub.payoutBreakdown}
+                      compact={true}
+                      isCreator={false}
+                      showExpandToggle={true}
+                    />
+                  </div>
+                )}
+
                 {/* Revision due date banner if status is revision_requested */}
                 {sub.status === 'revision_requested' && sub.revisionDueAt && (
                   <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800">
@@ -332,22 +356,68 @@ function SubmissionList({ campaignId, onStatusChange }) {
       )}
 
       {/* 1. APPROVE MODAL */}
-      <ConfirmModal
-        isOpen={Boolean(approveTarget)}
-        title="Approve Submission"
-        message={
-          approveTarget
-            ? `Approve and release ₹${(approveTarget.feePaise / 100).toLocaleString('en-IN')} to the creator?`
-            : ''
-        }
-        confirmText="Approve & Release"
-        error={modalError}
-        onConfirm={handleApprove}
-        onCancel={() => {
-          setApproveTarget(null);
-          setModalError('');
-        }}
-      />
+      {Boolean(approveTarget) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Approve Deliverable</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Approve and release <span className="font-semibold text-gray-900"><MoneyText paise={approveTarget.feePaise} /></span> from your budget?{' '}
+              {approveBreakdown && (
+                <>Creator receives <span className="font-bold text-emerald-600"><MoneyText paise={approveBreakdown.netPayoutPaise} /></span>.</>
+              )}
+            </p>
+
+            {modalError && (
+              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
+                {modalError}
+              </div>
+            )}
+
+            {approveBreakdown ? (
+              <div className="mb-4">
+                <FeeBreakdown breakdown={approveBreakdown} isCreator={false} compact={false} />
+              </div>
+            ) : (
+              <div className="p-4 flex justify-center"><Spinner /></div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Optional praise or feedback for creator:
+              </label>
+              <textarea
+                rows={2}
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                placeholder="Great job! The deliverable matches our brief perfectly..."
+                className="w-full border-gray-300 rounded-md shadow-sm p-2 border text-xs focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t">
+              <button
+                type="button"
+                onClick={() => {
+                  setApproveTarget(null);
+                  setActionNote('');
+                  setModalError('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleApprove}
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionLoading ? 'Approving...' : 'Approve & Release Funds'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. REQUEST REVISION MODAL */}
       {Boolean(revisionTarget) && (

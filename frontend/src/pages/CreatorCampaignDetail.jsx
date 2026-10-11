@@ -4,6 +4,7 @@ import api from '../api/axios';
 import StatusBadge from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
 import MoneyText from '../components/MoneyText';
+import FeeBreakdown from '../components/FeeBreakdown';
 import { formatDateIST } from '../utils/date';
 import SubmissionForm from '../components/SubmissionForm';
 
@@ -76,6 +77,23 @@ function CreatorCampaignDetail() {
             <p className="text-2xl font-bold text-indigo-600"><MoneyText paise={campaign.perCreatorFeePaise} /></p>
           </div>
         </div>
+
+        {campaign.estimatedPayout && (
+          <div className="mb-6">
+            <FeeBreakdown
+              breakdown={{
+                grossFeePaise: campaign.perCreatorFeePaise,
+                netPayoutPaise: campaign.estimatedPayout.netPayoutPaise,
+                platformFeePaise: campaign.estimatedPayout.platformFeePaise,
+                gstPaise: campaign.estimatedPayout.gstPaise,
+                tdsPaise: campaign.estimatedPayout.tdsPaise
+              }}
+              compact={true}
+              isCreator={true}
+              showExpandToggle={true}
+            />
+          </div>
+        )}
 
         {isClosed && (
           <div className="bg-yellow-50 text-yellow-800 p-4 rounded-md mb-8 border border-yellow-100">

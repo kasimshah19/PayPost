@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import StatusBadge from './StatusBadge';
 import MoneyText from './MoneyText';
+import FeeBreakdown from './FeeBreakdown';
 import Spinner from './Spinner';
 import { validateInstagramUrl } from '../utils/instagram';
 import { formatDateIST, formatCountdown } from '../utils/date';
@@ -360,24 +362,51 @@ function SubmissionForm({ applicationId, campaign, onSubmissionUpdated }) {
           )}
 
           {submission.status === 'approved' && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-green-900">Deliverable Approved!</h4>
+                <h4 className="font-bold text-emerald-900 text-lg flex items-center gap-2">
+                  <span className="text-xl">🎉</span> Deliverable Approved!
+                </h4>
                 <StatusBadge status="approved" />
               </div>
-              <p className="text-green-800 text-sm mb-3">
-                Your fee of <MoneyText paise={campaign?.perCreatorFeePaise || submission.feePaise} /> has been approved. Wallet credit arrives in Phase 6.
+              <p className="text-emerald-900 text-sm mb-3">
+                {submission.payoutBreakdown ? (
+                  <>
+                    <span className="font-extrabold text-base text-emerald-700">
+                      <MoneyText paise={submission.payoutBreakdown.netPayoutPaise} />
+                    </span>{' '}
+                    has been credited to your wallet (from gross fee <MoneyText paise={submission.payoutBreakdown.grossFeePaise} />).
+                  </>
+                ) : (
+                  <>Your deliverable has been approved and funds credited to your wallet.</>
+                )}
               </p>
-              <div className="text-sm text-gray-700">
-                <strong>Approved Post:</strong>{' '}
-                <a
-                  href={submission.postUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-700 font-medium underline break-all"
+
+              {submission.payoutBreakdown && (
+                <div className="my-3">
+                  <FeeBreakdown breakdown={submission.payoutBreakdown} isCreator={true} compact={false} />
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-emerald-200/60 text-sm">
+                <div className="text-gray-700">
+                  <span className="font-semibold text-gray-800">Approved Post:</span>{' '}
+                  <a
+                    href={submission.postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-700 font-medium underline break-all hover:text-emerald-900"
+                  >
+                    {submission.postUrl}
+                  </a>
+                </div>
+
+                <Link
+                  to="/creator/wallet"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
                 >
-                  {submission.postUrl}
-                </a>
+                  Go to Wallet &rarr;
+                </Link>
               </div>
             </div>
           )}

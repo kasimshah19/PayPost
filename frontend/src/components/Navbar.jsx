@@ -1,10 +1,24 @@
-import { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useContext, useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import api from '../api/axios';
+import MoneyText from './MoneyText';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [walletBalance, setWalletBalance] = useState(null);
+
+  useEffect(() => {
+    if (user && user.role === 'creator') {
+      api.get('/wallet')
+        .then(res => setWalletBalance(res.data.balancePaise))
+        .catch(() => {});
+    } else {
+      setWalletBalance(null);
+    }
+  }, [user, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -18,12 +32,27 @@ const Navbar = () => {
       <div>
         {user ? (
           <div className="flex items-center gap-4">
-            <span className="text-gray-700">
+            {user.role === 'creator' && walletBalance !== null && (
+              <Link
+                to="/creator/wallet"
+                title="View Creator Wallet"
+                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-xs font-semibold transition-colors shadow-sm"
+              >
+                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <span>Wallet:</span>
+                <MoneyText paise={walletBalance} />
+              </Link>
+            )}
+
+            <span className="text-gray-700 text-sm">
               {user.name} 
-              <span className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full capitalize">
+              <span className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full capitalize font-medium">
                 {user.role}
               </span>
             </span>
+
             <button 
               onClick={handleLogout}
               className="text-sm text-gray-500 hover:text-gray-700 font-medium"

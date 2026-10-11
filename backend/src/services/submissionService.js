@@ -6,6 +6,7 @@ const { SUBMISSION_STATUS, APPLICATION_STATUS, CAMPAIGN_STATUS, MAX_REVISIONS } 
 const withTransaction = require('../utils/withTransaction');
 const { validateInstagramUrl } = require('../utils/instagram');
 const payoutService = require('./payoutService');
+const walletService = require('./walletService');
 
 class SubmissionService {
   /**
@@ -231,6 +232,10 @@ class SubmissionService {
       err.status = 409;
       throw err;
     }
+
+    // Ensure creator has a wallet BEFORE opening the approval transaction
+    const creatorId = submission.creator?._id || submission.creator;
+    await walletService.ensureWallet(creatorId);
 
     return await withTransaction(async (session) => {
       // Atomic conditional update on { _id, brand, status: "submitted" }
@@ -503,7 +508,8 @@ class SubmissionService {
       versions: sub.versions,
       reviews: sub.reviews,
       feePaise: sub.application ? sub.application.feePaise : 0,
-      createdAt: sub.createdAt
+      createdAt: sub.createdAt,
+      ...(sub.status === 'approved' && sub.payoutBreakdown ? { payoutBreakdown: sub.payoutBreakdown } : {})
     }));
   }
 
@@ -538,7 +544,8 @@ class SubmissionService {
         revisionDueAt: sub.revisionDueAt,
         latestReviewNote: latestReview ? latestReview.note : null,
         feePaise: sub.application ? sub.application.feePaise : 0,
-        createdAt: sub.createdAt
+        createdAt: sub.createdAt,
+        ...(sub.status === 'approved' && sub.payoutBreakdown ? { payoutBreakdown: sub.payoutBreakdown } : {})
       };
     });
   }

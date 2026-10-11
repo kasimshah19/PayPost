@@ -10,6 +10,7 @@ import CampaignDetail from './pages/CampaignDetail';
 import EditCampaign from './pages/EditCampaign';
 import CreatorDashboard from './pages/CreatorDashboard';
 import CreatorCampaignDetail from './pages/CreatorCampaignDetail';
+import CreatorWallet from './pages/CreatorWallet';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
             {/* Creator Routes */}
             <Route path="/creator" element={<ProtectedRoute allowedRoles={['creator']}><CreatorDashboard /></ProtectedRoute>} />
             <Route path="/creator/campaigns/:id" element={<ProtectedRoute allowedRoles={['creator']}><CreatorCampaignDetail /></ProtectedRoute>} />
+            <Route path="/creator/wallet" element={<ProtectedRoute allowedRoles={['creator']}><CreatorWallet /></ProtectedRoute>} />
           </Routes>
         </div>
       </Router>

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import CampaignCard from '../components/CampaignCard';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import MoneyText from '../components/MoneyText';
 
 import CreatorApplicationList from '../components/CreatorApplicationList';
 import CreatorSubmissionList from '../components/CreatorSubmissionList';
@@ -11,12 +13,23 @@ import CreatorSubmissionList from '../components/CreatorSubmissionList';
 function CreatorDashboard() {
   const { user } = useContext(AuthContext);
   const [campaigns, setCampaigns] = useState([]);
+  const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchCampaigns();
+    fetchWallet();
   }, []);
+
+  const fetchWallet = async () => {
+    try {
+      const res = await api.get('/wallet');
+      setWallet(res.data);
+    } catch (err) {
+      console.error('Failed to load wallet summary:', err);
+    }
+  };
 
   const fetchCampaigns = async () => {
     try {
@@ -65,10 +78,28 @@ function CreatorDashboard() {
           </div>
           
           <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-xl font-bold mb-4">Wallet (Phase 6)</h2>
-            <div className="text-sm text-gray-500 text-center p-4 border border-dashed rounded bg-gray-50">
-              Wallet placeholder
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">My Wallet</h2>
+              <Link to="/creator/wallet" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
+                View Ledger &rarr;
+              </Link>
             </div>
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-4 mb-3">
+              <div className="text-xs uppercase font-semibold text-emerald-800">Available Balance</div>
+              <div className="text-2xl font-extrabold text-emerald-600 mt-1">
+                <MoneyText paise={wallet?.balancePaise ?? 0} />
+              </div>
+            </div>
+            <div className="flex justify-between items-center text-xs text-gray-500 pt-1">
+              <span>Expected: <span className="font-semibold text-gray-700"><MoneyText paise={wallet?.expectedPaise ?? 0} /></span></span>
+              <span>Lifetime: <span className="font-semibold text-gray-700"><MoneyText paise={wallet?.lifetimeEarnedPaise ?? 0} /></span></span>
+            </div>
+            <Link
+              to="/creator/wallet"
+              className="mt-4 block w-full text-center py-2 px-3 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            >
+              Open Full Wallet &rarr;
+            </Link>
           </div>
         </div>
       </div>

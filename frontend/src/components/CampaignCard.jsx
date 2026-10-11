@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import StatusBadge from './StatusBadge';
 import MoneyText from './MoneyText';
+import FeeBreakdown from './FeeBreakdown';
 import { formatDateIST } from '../utils/date';
 
 const CampaignCard = ({ campaign, isBrand = false }) => {
@@ -60,10 +61,31 @@ const CampaignCard = ({ campaign, isBrand = false }) => {
         </div>
       </div>
 
-      {isBrand && (
+      {isBrand ? (
         <div className="mt-4 pt-4 border-t flex gap-4 text-sm text-gray-600">
           <div>Applicants: <span className="font-bold">{campaign.applicantCounts?.applied || 0}</span></div>
           <div>Submissions: <span className="font-bold">{campaign.submissionCounts?.submitted || 0}</span></div>
+        </div>
+      ) : campaign.estimatedPayout && (
+        <div
+          className="mt-4 pt-3 border-t border-gray-100"
+          onClick={(e) => {
+            // Prevent link navigation when clicking inside the fee breakdown expansion
+            e.stopPropagation();
+          }}
+        >
+          <FeeBreakdown
+            breakdown={{
+              grossFeePaise: campaign.perCreatorFeePaise,
+              netPayoutPaise: campaign.estimatedPayout.netPayoutPaise,
+              platformFeePaise: campaign.estimatedPayout.platformFeePaise,
+              gstPaise: campaign.estimatedPayout.gstPaise,
+              tdsPaise: campaign.estimatedPayout.tdsPaise
+            }}
+            compact={true}
+            isCreator={true}
+            showExpandToggle={true}
+          />
         </div>
       )}
     </Link>

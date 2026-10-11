@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const User = require('../models/User');
+const walletService = require('../services/walletService');
 const env = require('../config/env');
 
 const signupSchema = z.object({
@@ -42,6 +43,12 @@ const signup = async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const newUser = await User.create({ name, email, passwordHash, role, phone });
+    
+    // Create wallet for creators at signup (brands get no wallet)
+    if (newUser.role === 'creator') {
+      await walletService.ensureWallet(newUser._id);
+    }
+
     const token = generateToken(newUser);
     
     const userObj = newUser.toObject();

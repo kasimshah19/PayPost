@@ -5,6 +5,7 @@ const Submission = require('../models/Submission');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../constants');
 const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
+const { calculateBreakdown } = require('./feeCalculator');
 
 class CampaignService {
   async create(data, brandId) {
@@ -110,12 +111,20 @@ class CampaignService {
     // Map output to remove sensitive fields
     const mapped = await Promise.all(campaigns.map(async (c) => {
       const myApplication = await Application.findOne({ campaign: c._id, creator: creatorId }).lean();
+      const feeBreakdown = calculateBreakdown(c.perCreatorFeePaise);
+      const estimatedPayout = {
+        netPayoutPaise: feeBreakdown.netPayoutPaise,
+        platformFeePaise: feeBreakdown.platformFeePaise,
+        gstPaise: feeBreakdown.gstPaise,
+        tdsPaise: feeBreakdown.tdsPaise
+      };
       
       return {
         _id: c._id,
         title: c.title,
         description: c.description,
         perCreatorFeePaise: c.perCreatorFeePaise,
+        estimatedPayout,
         slots: c.slots,
         slotsLeft: c.slots - c.approvedCount,
         applicationDeadline: c.applicationDeadline,
@@ -196,11 +205,20 @@ class CampaignService {
         }
       }
 
+      const feeBreakdown = calculateBreakdown(campaign.perCreatorFeePaise);
+      const estimatedPayout = {
+        netPayoutPaise: feeBreakdown.netPayoutPaise,
+        platformFeePaise: feeBreakdown.platformFeePaise,
+        gstPaise: feeBreakdown.gstPaise,
+        tdsPaise: feeBreakdown.tdsPaise
+      };
+
       return {
         _id: campaign._id,
         title: campaign.title,
         description: campaign.description,
         perCreatorFeePaise: campaign.perCreatorFeePaise,
+        estimatedPayout,
         slots: campaign.slots,
         slotsLeft: campaign.slots - campaign.approvedCount,
         applicationDeadline: campaign.applicationDeadline,

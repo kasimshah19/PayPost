@@ -14,6 +14,8 @@ const User = require('../src/models/User');
 const Campaign = require('../src/models/Campaign');
 const Application = require('../src/models/Application');
 const Submission = require('../src/models/Submission');
+const Wallet = require('../src/models/Wallet');
+const LedgerEntry = require('../src/models/LedgerEntry');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS } = require('../src/constants');
 const { generateToken } = require('../src/utils/jwt');
 const { validateInstagramUrl } = require('../src/utils/instagram');
@@ -27,6 +29,8 @@ beforeAll(async () => {
   await Submission.syncIndexes();
   await Application.syncIndexes();
   await Campaign.syncIndexes();
+  await Wallet.syncIndexes();
+  await LedgerEntry.syncIndexes();
 });
 
 afterAll(async () => {
@@ -39,6 +43,10 @@ beforeEach(async () => {
   await Campaign.deleteMany({});
   await Application.deleteMany({});
   await Submission.deleteMany({});
+  await Wallet.deleteMany({});
+  if (mongoose.connection.collections.ledgerentries) {
+    await mongoose.connection.collection('ledgerentries').deleteMany({});
+  }
 });
 
 const assertInvariants = async (campaignId) => {
