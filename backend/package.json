@@ -9,7 +9,12 @@
     "db:init": "node src/scripts/initDb.js",
     "wallet:backfill": "node src/scripts/walletBackfill.js",
     "wallet:check": "node src/scripts/walletCheck.js",
-    "seed:demo": "node src/scripts/seedDemo.js"
+    "seed:demo": "node src/scripts/seedDemo.js",
+    "test:risky:money": "jest --runInBand tests/fees.test.js tests/application.test.js tests/wallet.test.js",
+    "test:risky:state": "jest --runInBand tests/application.test.js tests/submission.test.js",
+    "test:risky:out": "jest --runInBand tests/withdrawal.test.js tests/notification.test.js tests/quietHours.test.js",
+    "test:risky": "jest --runInBand tests/fees.test.js tests/application.test.js tests/wallet.test.js tests/submission.test.js tests/withdrawal.test.js tests/notification.test.js tests/quietHours.test.js",
+    "check:secrets": "node scripts/scanSecrets.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
