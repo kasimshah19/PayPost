@@ -327,7 +327,7 @@ In production, environment variables are securely injected through the host clou
 # Backend (Render Secrets)
 PORT=5000
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/paypost?retryWrites=true&w=majority
-JWT_SECRET=super_secret_cryptographic_key_min_32_characters
+JWT_SECRET=your_super_secret_jwt_key_at_least_32_characters_long
 CLIENT_URL=https://paypost.vercel.app
 WORKER_ENABLED=true
 NOTIFICATION_WORKER_ENABLED=true
