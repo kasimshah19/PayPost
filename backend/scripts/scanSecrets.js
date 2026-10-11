@@ -53,6 +53,11 @@ for (const relFile of files) {
   const absPath = path.join(ROOT_DIR, relFile);
   if (!fs.existsSync(absPath)) continue;
 
+  // Skip scanner itself and documentation checklists
+  if (relFile.includes('scanSecrets.js') || relFile.includes('CHECKLIST.md')) {
+    continue;
+  }
+
   // Skip binary/large media files
   const ext = path.extname(relFile).toLowerCase();
   if (['.png', '.jpg', '.jpeg', '.webp', '.ico', '.pdf', '.zip'].includes(ext)) {
