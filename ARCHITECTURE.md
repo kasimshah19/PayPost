@@ -1002,13 +1002,15 @@ Phase 8 introduces an enterprise **Transactional Outbox Architecture** paired wi
 #### Architectural Decision
 **Notifications are NEVER dispatched via direct external HTTP calls during request lifecycles. Instead, outbound notification intent is committed as a `NotificationJob` document within the exact same database transaction that changes business/financial state.**
 
-#### Why This Is Critical (The "Paisa Credit Hua Par Message Nahi Gaya" Dilemma)
-In distributed systems, updating a database and calling an external third-party API (SendGrid, Twilio, WhatsApp Cloud API) represents a classic **Dual-Write Anti-Pattern**:
-- **Risk Scenario A (Dispatch before Commit):** The server sends an email or WhatsApp saying *"₹1,000 credited to your wallet!"*, but the database transaction immediately rolls back due to a constraint violation. **Result: Phantom message; creator expects money that was never credited.**
-- **Risk Scenario B (Dispatch after Commit):** The database transaction commits, but the server crashes, power cuts, or the external notification gateway times out before the HTTP call completes. **Result: Money credited, but creator never gets notified, causing support panic.**
+#### Dual-Write Anti-Pattern vs. Transactional Outbox Matrix
 
-#### Solution: Atomic Outbox Enqueue
-By inserting the `NotificationJob` inside the primary MongoDB transaction session:
+| Architecture Strategy | Execution Model | Database Failure Behavior | Gateway Downtime Behavior | Phantom Alert Risk | Production Suitability |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Direct Call Before Commit** | 1. Call External Gateway API<br>2. Commit DB Transaction | If DB aborts, external message has **already sent** | Gateway timeout blocks incoming HTTP request | **CRITICAL:** Creator receives *"₹1,000 credited!"* but DB rolled back | **REJECTED (Catastrophic)** |
+| **Direct Call After Commit** | 1. Commit DB Transaction<br>2. Call External Gateway API | DB is committed, but if node crashes before call, **message never fires** | Gateway downtime causes lost notifications without retry | High (Silent drop upon network drop) | **REJECTED (Fragile)** |
+| **Transactional Outbox (Adopted)** | 1. Write domain change + insert `NotificationJob` in **1 ACID transaction**<br>2. Background worker polls & dispatches | If DB aborts, **job rolls back atomically**; zero phantom messages | Worker retries with exponential backoff; 100% durable | **ZERO (Mathematically impossible)** | **ADOPTED (Enterprise Banking Standard)** |
+
+#### Atomic Outbox Code Topology
 ```javascript
 // Inside withTransaction:
 await wallet.save({ session });
@@ -1038,20 +1040,23 @@ $$\text{IST Minutes} = (\text{UTC Hours} \times 60 + \text{UTC Minutes} + 330) \
 - Any job triggered within this window has its `scheduledFor` timestamp shifted forward to the next occurring $09:00:00.000\text{ IST}$.
 - Retries resulting from gateway network errors are also clamped: if a retry falls into quiet hours, it is automatically pushed to 9:00 AM IST.
 
-#### Boundary Second & Calendar Edge Testing
-Automated regression tests explicitly cover exact boundary seconds:
-- `20:59:59 IST`: Allowed for immediate dispatch.
-- `21:00:00 IST`: Held until 09:00:00 IST the next morning.
-- `08:59:59 IST`: Held until 09:00:00 IST.
-- `09:00:00 IST`: Allowed for immediate dispatch.
-- **Year-End Rollover Edge:** December 31 23:59:59 IST rolls over seamlessly into January 1 09:00:00 IST without calendar corruption.
+#### Quiet Hours Boundary Conditions & Verification Matrix
 
-#### Two-Stage Quiet Hours Enforcement Matrix
+| Exact Test Boundary (IST) | Equivalent UTC Time | System State / Evaluation | Worker Action | Delivery Outcome |
+| :--- | :--- | :--- | :--- | :--- |
+| **`20:59:59 IST`** | `15:29:59 UTC` | Last second before quiet hours | Immediate claim & send | Dispatched immediately |
+| **`21:00:00 IST`** | `15:30:00 UTC` | First second of quiet hours | Held; `scheduledFor` shifted to next 09:00 IST | Queued until morning |
+| **`23:59:59 IST (Dec 31)`** | `18:29:59 UTC` | Year-end midnight rollover | Rescheduled to Jan 1 09:00 IST | Safe year-end transition |
+| **`03:30:00 IST`** | `22:00:00 UTC` | Deep night trigger (e.g. cron payout) | Held; `scheduledFor` shifted to 09:00 IST | Queued until morning |
+| **`08:59:59 IST`** | `03:29:59 UTC` | Last second of quiet hours | Held; waiting 1 second | Queued until morning |
+| **`09:00:00 IST`** | `03:30:00 UTC` | First second of active daytime | Immediate claim & send | Dispatched immediately |
 
-| Check Stage | Evaluation Point | Purpose | Handled Edge Case |
+#### Two-Stage Quiet Hours Architecture Matrix
+
+| Evaluation Stage | Execution Location | Primary Objective | Failure Mode Defeated |
 | :--- | :--- | :--- | :--- |
-| **Stage 1: Enqueue Time** | Controller / Domain Service | Computes initial `scheduledFor` timestamp | Avoids waking up worker queue prematurely for night messages |
-| **Stage 2: Send Time** | Worker claim right before gateway dispatch | Re-checks current IST time before firing external socket | Worker backlog delay: a message enqueued at 20:58 processed at 21:01 is intercepted and safely deferred |
+| **Stage 1: Enqueue Time** | Controller / Domain Service (Within Transaction) | Calculates initial `scheduledFor` target timestamp | Avoids unnecessary database polling during night hours |
+| **Stage 2: Send Time** | Worker claim immediately before external gateway call | Re-evaluates current IST time before firing network socket | **Worker Backlog Drift:** A job enqueued at 20:59:00 that waits in worker backlog until 21:01:00 is caught and deferred |
 
 ---
 
@@ -1060,15 +1065,21 @@ Automated regression tests explicitly cover exact boundary seconds:
 #### Architectural Decision
 **Recipient notification preferences (`user.notificationPrefs.email`, `user.notificationPrefs.whatsapp`) are evaluated twice: at enqueue time and at worker dispatch time. Skipped notifications are recorded as durable `skipped` jobs rather than silently deleted.**
 
-#### The Necessity of the "Skipped" Audit Trail
-In customer support and financial auditing, a common user ticket is: *"Why didn't I receive an alert when my withdrawal succeeded?"*
-- If opt-out jobs were simply omitted or dropped from the database, support engineers would have zero visibility into whether the notification system failed or the user had disabled the channel.
-- **PayPost Pattern:** The worker persists the job with `status: "skipped"` and `reason: "Skipped: WhatsApp disabled by user"`.
-- This provides an immutable audit log proving that the platform generated the notification intent, but honored the user's explicit communication preferences.
+#### Opt-Out Handling Strategies Comparison Matrix
 
-#### Two-Stage Verification Benefit
-1. **Enqueue Check:** Sets initial eligibility based on current preferences.
-2. **Send-Time Re-Check:** If a user disables WhatsApp alerts while a message is queued or delayed in quiet hours, the worker re-evaluates `user.notificationPrefs` at dispatch time and gracefully skips the message rather than spamming the user.
+| Strategy | Handling of Disabled Channels | Customer Support Visibility | Statutory Audit Log | Compliance & Trust |
+| :--- | :--- | :--- | :--- | :--- |
+| **Silent Drop (Naive)** | Row is deleted or not inserted | **Zero visibility:** "Did the system crash or was it opt-out?" | Fails audit: No proof of why notification was missing | Low: User and admin left guessing |
+| **Hard Block at Form** | Prevents setting preferences | Inflexible: Users forced to receive all messages | No opt-out trail | Illegal under modern privacy laws |
+| **Durable Skipped Job (Adopted)** | Job persisted with `status: "skipped"` + explicit reason | **100% Transparent:** Dashboard shows *"Skipped: WhatsApp off"* | Complete audit trail proving intent was created but user consent was respected | **Enterprise Grade:** Full DPDP / GDPR audit compliance |
+
+#### Two-Stage Opt-Out Lifecycle Matrix
+
+| Stage | Trigger Point | User Preference State | Database Action | Outcome |
+| :--- | :--- | :--- | :--- | :--- |
+| **Stage 1: Enqueue** | Event fires in transaction | `whatsapp: false` | Insert job with initial intent | Marked for verification |
+| **Stage 2: Send Time** | Worker claims job | `whatsapp: false` | Conditional update `status: "skipped"`, `reason: "Skipped: WhatsApp off"` | Persisted as audit record |
+| **Mid-flight Opt-Out** | Enqueued while `true`, user toggles `false` while held in quiet hours | Now `whatsapp: false` at 09:00 AM | Re-check intercepts job before gateway dispatch; marks `skipped` | **Zero Spam:** Honor user's updated consent |
 
 ---
 
@@ -1077,11 +1088,13 @@ In customer support and financial auditing, a common user ticket is: *"Why didn'
 #### Architectural Decision
 **Job deduplication uses atomic MongoDB `updateOne({ dedupeKey }, { $setOnInsert: jobData }, { upsert: true, session })` instead of catching duplicate-key (`E11000`) index errors.**
 
-#### Critical MongoDB Multi-Document Transaction Invariant
-In MongoDB replica sets, if a write inside a multi-document transaction encounters a duplicate key error (`E11000`), **the MongoDB server engine marks the entire transaction as aborted (TransientTransactionError)**.
-- In Node.js / Mongoose, wrapping `Model.create()` in a `try/catch` block to ignore duplicate keys **fails** because the underlying MongoDB transaction session is invalidated by the engine the instant `E11000` is raised.
-- **The Solution:** Using `updateOne` with `{ upsert: true }` and `$setOnInsert` performs a conditional insert without generating a duplicate key exception.
-- If the `dedupeKey` already exists, MongoDB treats the query as a matching update that modifies 0 fields (`matchedCount: 1, modifiedCount: 0, upsertedCount: 0`). The transaction proceeds smoothly without aborting!
+#### Concurrency & Deduplication Defense Matrix
+
+| Deduplication Technique | Execution Pattern | MongoDB Transaction Behavior | Performance & Lock Contention | Assessment |
+| :--- | :--- | :--- | :--- | :--- |
+| **Application `findOne` then `insert`** | Read `dedupeKey`; if not found, call `create()` | **Vulnerable to TOCTOU race conditions:** Concurrent workers insert duplicates | Low contention, high bug rate | **REJECTED (Race Condition)** |
+| **`create()` with `try/catch(E11000)`** | Insert document; catch duplicate key error in catch block | **FATAL IN TRANSACTIONS:** MongoDB engine immediately aborts entire transaction on `E11000` | Aborts parent transaction; rolls back wallet/ledger | **REJECTED (Transaction Abort)** |
+| **Atomic Upsert + `$setOnInsert` (Adopted)** | `updateOne({ dedupeKey }, { $setOnInsert }, { upsert: true, session })` | **ACID Safe:** Silent conditional insert; duplicate matches 0 fields without raising error | Zero lock contention, transaction remains intact | **ADOPTED (Production Standard)** |
 
 ---
 
@@ -1090,10 +1103,15 @@ In MongoDB replica sets, if a write inside a multi-document transaction encounte
 #### Architectural Decision
 **The mock notification gateway (`mockNotificationProvider.js`) delivers deterministic outcomes derived from SHA-256 hashes of the idempotency key, backed by an in-memory execution cache.**
 
-#### Architectural Benefits
-- **Zero Flaky CI/CD Runs:** Never uses `Math.random()`. Outcomes are 100% reproducible across test runs.
-- **Idempotent Replay Guarantee:** Dispatching a notification with the same `dedupeKey` twice produces the identical gateway reference ID and delivery status, counting strictly as a single message dispatch.
-- **Single Point of Replacement:** When transitioning to production, `mockNotificationProvider.js` is the sole adapter file replaced with Twilio (WhatsApp) and SendGrid/SES (Email) API clients.
+#### Mock Gateway Architecture Comparison Matrix
+
+| Property | Pseudo-Random Simulation (`Math.random()`) | Deterministic Hash-Keyed Adapter (Adopted) | Live Gateway Adapter (Production Roadmap) |
+| :--- | :--- | :--- | :--- |
+| **Implementation** | `Math.random() > 0.1` | Hash of `dedupeKey` mapped to outcomes | Twilio / SendGrid / Gupshup SDKs |
+| **CI/CD Flakiness** | High (Intermittent random failures) | **Zero (100% reproducible outcomes)** | Requires live credentials and network mocks |
+| **Server Reboot Behavior** | Divergent state on restart | **Identical outcome across server reboots** | Gateway preserves external delivery status |
+| **Idempotent Replay** | Second call may fail or succeed unpredictably | **Exact same providerRef and status returned** | Gateway rejects duplicate idempotency keys |
+| **Transition Plan** | Must rewrite entire layer | **Replace sole provider file with live API calls** | Zero schema or queue modifications |
 
 ---
 
@@ -1102,15 +1120,13 @@ In MongoDB replica sets, if a write inside a multi-document transaction encounte
 #### Architectural Decision
 **A simulated developer clock (`config/devClock.js`) enables testing quiet-hour rollovers, 9:00 AM IST transitions, and delayed retries without waiting real calendar hours. It is strictly unmounted in production environments.**
 
-#### Security & Runtime Guard
-```javascript
-// Dev Clock Mount Guard:
-if (process.env.NODE_ENV === 'production') {
-  // Clock manipulation API routes and hooks are completely omitted from Express router
-  return;
-}
-```
-In development and integration test suites, tests can advance simulated time to `09:00:01 IST` to verify that quiet-hour queues drain automatically, ensuring 100% test velocity.
+#### Environment Isolation Matrix
+
+| Environment | Clock Mode | Control API Endpoints Mounted? | Security & Integrity Guard |
+| :--- | :--- | :--- | :--- |
+| **Development (`development`)** | Virtual Clock (Fast-Forward enabled) | `POST /api/dev/clock/advance`<br>`POST /api/dev/clock/reset` | Facilitates rapid manual testing of quiet hours |
+| **Test (`test` / Jest CI)** | Virtual Clock (Frozen / Controllable) | Programmatic control inside test assertions | Allows testing 08:59:59 $\rightarrow$ 09:00:00 boundary transitions |
+| **Production (`production`)** | **Strict Hardware Clock (`Date.now()`)** | **UNMOUNTED (Route not registered, returns 404)** | Guaranteed zero manipulation of production timestamps |
 
 ---
 
@@ -1119,28 +1135,34 @@ In development and integration test suites, tests can advance simulated time to 
 #### Architectural Decision
 **The `/notifications` page directly surfaces delivery explanations and scheduled delays, completely eliminating user uncertainty regarding missing alerts.**
 
-#### Friction-Reduction Optimizations Implemented
-1. **Clear Reason Indicators:**
-   - If a message is held due to quiet hours: clearly shows `"Held until 9:00 AM IST"`.
-   - If a message was omitted due to preference: clearly shows `"Skipped: WhatsApp off"`.
-2. **Prominent Informational Banner:**
-   - When jobs are queued in quiet hours, an alert banner displays: *"3 messages held until 9:00 AM IST to respect quiet hours"*.
-3. **Channel-Specific Delivery Chips:**
-   - Visual badges for Email and WhatsApp indicate channel health and delivery receipts.
+#### Notification Transparency & UX Reduction Matrix
+
+| System Event | Traditional Black-Box UX | PayPost Transparent Architecture | User & Support Impact |
+| :--- | :--- | :--- | :--- |
+| **Message Queued in Night** | User wonders why no SMS/email arrived | Banner: *"3 messages held until 9:00 AM IST to respect quiet hours"* | Zero panic; user knows system is actively working |
+| **Opted-Out Channel** | Creator files support ticket: *"Did payout go through?"* | Explicit card tag: *"Skipped: WhatsApp turned off in settings"* | Immediate self-service resolution |
+| **Held Message Item** | Invisible until sent | Message visible in feed with amber tag: *"Held until 9:00 AM IST"* | High trust; creator reads content immediately in-app |
+| **Channel Preferences** | Buried deep in user account sub-menus | Quick-toggle drawer directly accessible from `/notifications` | Single-click preference adjustment |
 
 ---
 
 ### 8. Phase 8 Assumptions & Documented Gaps
 
-#### Domain Assumptions
-1. **Dual-Channel Broadcast:** Every platform event generates notification jobs for both Email and WhatsApp (filtered subsequently by user preferences).
-2. **Opt-Out Covers Financial Messages:** User opt-out applies to all messages, including payout and withdrawal alerts (in a regulated banking production environment, statutory money movement alerts are mandatory and bypass marketing opt-outs).
-3. **No Retroactive Dispatch on Re-Opt-in:** Re-enabling an opted-out channel does not retroactively dispatch previously skipped messages; skipped records remain archived for audit.
+#### Domain Assumptions Matrix
 
-#### Documented Production Gaps
-1. **Mock Gateway Adapters:** Live third-party providers (Twilio, Gupshup, SendGrid, SES) are mocked in the MVP; production requires live webhook callbacks and API keys.
-2. **No Per-Event Topic Preferences:** Users can opt out of entire channels (`email`, `whatsapp`), but cannot yet selectively subscribe to specific event categories (e.g. "Only notify on Payouts, mute Application updates").
-3. **No In-App Read/Unread State:** In-app notification logs provide delivery transparency and audit trails, but do not yet track read timestamps or unread notification counts.
+| # | Assumption | Domain Rationale & System Boundary | Enterprise Production Evolution |
+| :-: | :--- | :--- | :--- |
+| **1** | **Dual-Channel Broadcast** | Every platform event queues alerts for both Email and WhatsApp | Maintain dual queue; let user selectively silence channels |
+| **2** | **Opt-Out Covers Financial Messages** | User opt-out applies universally, including payout/withdrawal notices | In banking systems, regulatory transaction alerts bypass opt-out |
+| **3** | **No Retroactive Replay on Re-Opt-in** | Toggling a channel back on does not replay historical skipped alerts | Skipped messages remain historical audit logs; queue is not retroactively flooded |
+
+#### Documented Production Gaps Matrix
+
+| # | Documented Gap | Current MVP Behavior | Production Solution & Architecture |
+| :-: | :--- | :--- | :--- |
+| **1** | **Live Gateway Integration** | Deterministic mock gateway with simulated latencies | Integrate Twilio (WhatsApp API) and SendGrid/AWS SES (Email) |
+| **2** | **Granular Per-Event Topic Opt-Out** | Channel-level toggles (`email: Boolean`, `whatsapp: Boolean`) | Add topic matrix (`marketing`, `transactions`, `reviews`, `reminders`) |
+| **3** | **Read / Unread Receipt Tracking** | In-app notification feed shows delivery status, but no read receipts | Add `isRead: Boolean` and `readAt: Date` with unread notification badge chip |
 
 ---
 
