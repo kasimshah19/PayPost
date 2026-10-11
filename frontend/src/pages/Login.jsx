@@ -1,11 +1,17 @@
-import { useState, useContext } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import React, { useState } from 'react';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Icon } from '../components/ui/Icon';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-function Login() {
-  const { login, user } = useContext(AuthContext);
+export default function Login() {
+  useDocumentTitle('Sign In');
+  const { login, user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +36,7 @@ function Login() {
       if (err.response && err.response.data) {
         setError(err.response.data.message);
       } else {
-        setError('Something went wrong');
+        setError('Something went wrong. Please check your credentials.');
       }
     } finally {
       setLoading(false);
@@ -38,45 +44,84 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
-      </div>
+    <div className="py-6 sm:py-12 flex justify-center">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            Sign in to your account
+          </h1>
+          <p className="mt-2 text-sm text-gray-500">
+            Welcome back to PayPost
+          </p>
+        </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email address</label>
-              <div className="mt-1">
-                <input name="email" type="email" required value={formData.email} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-              </div>
-            </div>
+        <Card>
+          <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+            <Input
+              id="login-email"
+              label="Email address"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              enterKeyHint="next"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <div className="mt-1 relative">
-                <input name="password" type={showPassword ? "text" : "password"} required value={formData.password} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm pr-16" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-500 hover:text-gray-700 font-medium">
-                  {showPassword ? 'Hide' : 'Show'}
+            <div className="w-full">
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  enterKeyHint="done"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full min-h-11 px-3 py-2 text-base rounded-lg border border-gray-300 bg-white text-gray-900 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 pr-3 min-w-11 min-h-11 flex items-center justify-center text-gray-500 hover:text-gray-700"
+                >
+                  <Icon name={showPassword ? 'eye-off' : 'eye'} className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm">{error}</div>
+              <div
+                className="p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200"
+                role="alert"
+                aria-live="polite"
+              >
+                {error}
+              </div>
             )}
 
-            <div>
-              <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
-                {loading ? 'Signing in...' : 'Sign in'}
-              </button>
+            <div className="pt-2">
+              <Button type="submit" variant="primary" fullWidth loading={loading}>
+                Sign In
+              </Button>
             </div>
           </form>
-        </div>
+
+          <div className="mt-6 text-center text-sm text-gray-500">
+            Don't have an account?{' '}
+            <Link to="/signup" className="font-semibold text-indigo-600 hover:text-indigo-500">
+              Create an account
+            </Link>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
-
-export default Login;

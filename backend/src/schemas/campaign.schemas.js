@@ -33,8 +33,17 @@ const cancelCampaignSchema = z.object({
   cancelReason: z.string().min(3).max(300)
 });
 
+const browseCampaignsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  q: z.string().trim().max(50).optional(),
+  sort: z.enum(['newest', 'fee_desc', 'ending_soon']).default('newest'),
+  minFeePaise: z.coerce.number().int().min(0).optional()
+});
+
 module.exports = {
   createCampaignSchema,
   updateCampaignSchema,
-  cancelCampaignSchema
+  cancelCampaignSchema,
+  browseCampaignsQuerySchema
 };

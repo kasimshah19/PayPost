@@ -11,12 +11,26 @@ const walletRoutes = require('./routes/wallet.routes');
 const withdrawalRoutes = require('./routes/withdrawal.routes');
 const feeRoutes = require('./routes/fee.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const creatorRoutes = require('./routes/creator.routes');
 const devRoutes = require('./routes/dev.routes');
 
 const app = express();
 
 app.use(express.json());
-app.use(cors({ origin: env.CLIENT_URL }));
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    const allowed = env.ALLOWED_ORIGINS || (env.CLIENT_URL ? [env.CLIENT_URL] : ['http://localhost:5173']);
+    const list = Array.isArray(allowed) ? allowed : [allowed];
+    if (list.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  }
+};
+app.use(cors(corsOptions));
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -28,6 +42,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/creator', creatorRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/notifications', notificationRoutes);

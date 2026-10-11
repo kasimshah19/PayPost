@@ -28,10 +28,19 @@ exports.getMineSummary = async (req, res, next) => {
   }
 };
 
+exports.getMineAttention = async (req, res, next) => {
+  try {
+    const attention = await campaignService.getMineAttention(req.user.id);
+    res.json(attention);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.browseCampaigns = async (req, res, next) => {
   try {
-    const { page, limit } = req.query;
-    const campaigns = await campaignService.browseCreator({ page, limit }, req.user.id);
+    const { page, limit, q, sort, minFeePaise } = req.query;
+    const campaigns = await campaignService.browseCreator({ page, limit, q, sort, minFeePaise }, req.user.id);
     res.json(campaigns);
   } catch (error) {
     next(error);

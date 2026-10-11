@@ -1,19 +1,25 @@
-import { useState, useContext } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import React, { useState } from 'react';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Icon } from '../components/ui/Icon';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-function Signup() {
-  const { signup, user } = useContext(AuthContext);
+export default function Signup() {
+  useDocumentTitle('Create Account');
+  const { signup, user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     phone: '',
-    role: 'creator' // default
+    role: 'creator'
   });
-  const [errors, setErrors] = useState(null);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -25,18 +31,23 @@ function Signup() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleRoleSelect = (role) => {
+    setFormData({ ...formData, role });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors(null);
+    setError(null);
     setLoading(true);
     try {
       const data = await signup(formData);
       navigate(`/${data.user.role}`);
     } catch (err) {
       if (err.response && err.response.data) {
-        setErrors(err.response.data.message || err.response.data.errors);
+        const msg = err.response.data.message || (Array.isArray(err.response.data.errors) ? err.response.data.errors[0]?.message : null);
+        setError(msg || 'Registration failed');
       } else {
-        setErrors('Something went wrong');
+        setError('Something went wrong during sign up');
       }
     } finally {
       setLoading(false);
@@ -44,78 +55,152 @@ function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Create your account</h2>
-      </div>
+    <div className="py-6 sm:py-12 flex justify-center">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            Create your account
+          </h1>
+          <p className="mt-2 text-sm text-gray-500">
+            Join PayPost as a Creator or Brand
+          </p>
+        </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            
-            {/* Role Selection */}
-            <div className="flex gap-4">
-              <label className={`flex-1 cursor-pointer border-2 rounded-lg p-4 text-center ${formData.role === 'creator' ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                <input type="radio" name="role" value="creator" checked={formData.role === 'creator'} onChange={handleChange} className="sr-only" />
-                <span className={`block font-medium ${formData.role === 'creator' ? 'text-indigo-900' : 'text-gray-900'}`}>Creator</span>
+        <Card>
+          <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+            {/* Role Selection: Two big tappable cards */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                I want to join as:
               </label>
-              <label className={`flex-1 cursor-pointer border-2 rounded-lg p-4 text-center ${formData.role === 'brand' ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                <input type="radio" name="role" value="brand" checked={formData.role === 'brand'} onChange={handleChange} className="sr-only" />
-                <span className={`block font-medium ${formData.role === 'brand' ? 'text-indigo-900' : 'text-gray-900'}`}>Brand</span>
-              </label>
-            </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleRoleSelect('creator')}
+                  className={`min-h-16 p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between ${
+                    formData.role === 'creator'
+                      ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 ring-1 ring-indigo-600'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <span className="text-lg">📱</span>
+                  <div>
+                    <p className="text-sm font-bold">Creator</p>
+                    <p className="text-xs text-gray-500">Get paid for UGC</p>
+                  </div>
+                </button>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Full Name</label>
-              <div className="mt-1">
-                <input name="name" type="text" required value={formData.name} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email address</label>
-              <div className="mt-1">
-                <input name="email" type="email" required value={formData.email} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <div className="mt-1 relative">
-                <input name="password" type={showPassword ? "text" : "password"} required value={formData.password} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm pr-16" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-500 hover:text-gray-700 font-medium">
-                  {showPassword ? 'Hide' : 'Show'}
+                <button
+                  type="button"
+                  onClick={() => handleRoleSelect('brand')}
+                  className={`min-h-16 p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between ${
+                    formData.role === 'brand'
+                      ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 ring-1 ring-indigo-600'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <span className="text-lg">🏢</span>
+                  <div>
+                    <p className="text-sm font-bold">Brand</p>
+                    <p className="text-xs text-gray-500">Hire creators</p>
+                  </div>
                 </button>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Phone (Optional)</label>
-              <div className="mt-1">
-                <input name="phone" type="text" value={formData.phone} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+            <Input
+              id="signup-name"
+              label="Full Name"
+              name="name"
+              type="text"
+              required
+              autoComplete="name"
+              enterKeyHint="next"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="Your full name"
+            />
+
+            <Input
+              id="signup-email"
+              label="Email address"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              enterKeyHint="next"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+            />
+
+            <div className="w-full">
+              <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="signup-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="new-password"
+                  enterKeyHint="next"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="At least 6 characters"
+                  className="w-full min-h-11 px-3 py-2 text-base rounded-lg border border-gray-300 bg-white text-gray-900 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 pr-3 min-w-11 min-h-11 flex items-center justify-center text-gray-500 hover:text-gray-700"
+                >
+                  <Icon name={showPassword ? 'eye-off' : 'eye'} className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
-            {errors && (
-              <div className="text-red-600 text-sm">
-                {typeof errors === 'string' ? errors : (
-                  <ul className="list-disc pl-5">
-                    {errors.map((err, i) => <li key={i}>{err.message}</li>)}
-                  </ul>
-                )}
+            <Input
+              id="signup-phone"
+              label="Phone number (Optional)"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="done"
+              value={formData.phone}
+              onChange={handleChange}
+              placeholder="+919876543210"
+              hint="Format: +91 followed by 10 digits"
+            />
+
+            {error && (
+              <div
+                className="p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200"
+                role="alert"
+                aria-live="polite"
+              >
+                {typeof error === 'string' ? error : JSON.stringify(error)}
               </div>
             )}
 
-            <div>
-              <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
-                {loading ? 'Signing up...' : 'Sign up'}
-              </button>
+            <div className="pt-2">
+              <Button type="submit" variant="primary" fullWidth loading={loading}>
+                Create Account
+              </Button>
             </div>
           </form>
-        </div>
+
+          <div className="mt-6 text-center text-sm text-gray-500">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500">
+              Sign In
+            </Link>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
-
-export default Signup;

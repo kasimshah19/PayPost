@@ -6,7 +6,12 @@ const { CAMPAIGN_STATUS, APPLICATION_STATUS, SUBMISSION_STATUS, NOTIFICATION_EVE
 const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
 const { calculateBreakdown } = require('./feeCalculator');
+const { evaluateApprovability } = require('../utils/campaignApprovability');
 const notificationService = require('./notificationService');
+
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 class CampaignService {
   async create(data, brandId) {
@@ -93,7 +98,111 @@ class CampaignService {
     return summary;
   }
 
-  async browseCreator({ page = 1, limit = 20 }, creatorId) {
+  async getMineAttention(brandId) {
+    // Only the brand's own campaigns with status "active"
+    const activeCampaigns = await Campaign.find({
+      brand: brandId,
+      status: CAMPAIGN_STATUS.ACTIVE
+    }).lean();
+
+    const campaignMap = new Map();
+    activeCampaigns.forEach(c => {
+      campaignMap.set(c._id.toString(), c);
+    });
+
+    const activeCampaignIds = activeCampaigns.map(c => c._id);
+
+    // Counts show real totals across all active campaigns of this brand
+    const [totalPendingApplicants, totalPendingSubmissions] = await Promise.all([
+      Application.countDocuments({
+        campaign: { $in: activeCampaignIds },
+        status: APPLICATION_STATUS.APPLIED
+      }),
+      Submission.countDocuments({
+        campaign: { $in: activeCampaignIds },
+        status: SUBMISSION_STATUS.SUBMITTED
+      })
+    ]);
+
+    // Oldest first, at most 20 each
+    const [rawApplicants, rawSubmissions] = await Promise.all([
+      Application.find({
+        campaign: { $in: activeCampaignIds },
+        status: APPLICATION_STATUS.APPLIED
+      })
+        .sort({ createdAt: 1 })
+        .limit(20)
+        .populate('creator', 'name')
+        .lean(),
+      Submission.find({
+        campaign: { $in: activeCampaignIds },
+        status: SUBMISSION_STATUS.SUBMITTED
+      })
+        .sort({ createdAt: 1 })
+        .limit(20)
+        .populate('creator', 'name')
+        .lean()
+    ]);
+
+    const applicants = rawApplicants.map(app => {
+      const camp = campaignMap.get(app.campaign.toString());
+      const { canApprove, cannotApproveReason } = evaluateApprovability(camp);
+      const pitchCut = app.pitch ? app.pitch.substring(0, 200) : '';
+
+      return {
+        applicationId: app._id,
+        campaignId: app.campaign,
+        campaignTitle: camp ? camp.title : '',
+        creator: {
+          id: app.creator?._id || app.creator,
+          name: app.creator?.name || 'Creator'
+        },
+        pitch: pitchCut,
+        appliedAt: app.createdAt,
+        perCreatorFeePaise: camp ? camp.perCreatorFeePaise : 0,
+        canApprove,
+        cannotApproveReason
+      };
+    });
+
+    const submissions = rawSubmissions.map(sub => {
+      const camp = campaignMap.get(sub.campaign.toString());
+      // Latest version submittedAt
+      let submittedAt = sub.createdAt;
+      if (sub.versions && sub.versions.length > 0) {
+        submittedAt = sub.versions[sub.versions.length - 1].submittedAt || sub.createdAt;
+      }
+      const revisionCount = sub.revisionCount || 0;
+      const revisionsLeft = Math.max(0, 2 - revisionCount);
+
+      return {
+        submissionId: sub._id,
+        campaignId: sub.campaign,
+        campaignTitle: camp ? camp.title : '',
+        creator: {
+          id: sub.creator?._id || sub.creator,
+          name: sub.creator?.name || 'Creator'
+        },
+        postUrl: sub.postUrl,
+        submittedAt,
+        revisionCount,
+        revisionsLeft,
+        feePaise: camp ? camp.perCreatorFeePaise : 0
+      };
+    });
+
+    return {
+      counts: {
+        pendingApplicants: totalPendingApplicants,
+        pendingSubmissions: totalPendingSubmissions,
+        total: totalPendingApplicants + totalPendingSubmissions
+      },
+      applicants,
+      submissions
+    };
+  }
+
+  async browseCreator({ page = 1, limit = 20, q, sort = 'newest', minFeePaise }, creatorId) {
     const skip = (page - 1) * limit;
 
     const query = {
@@ -102,8 +211,24 @@ class CampaignService {
       $expr: { $gt: ["$slots", "$approvedCount"] }
     };
 
+    if (q && q.trim()) {
+      const safeRegex = new RegExp(escapeRegex(q.trim()), 'i');
+      query.title = safeRegex;
+    }
+
+    if (minFeePaise !== undefined && minFeePaise !== null && !isNaN(minFeePaise)) {
+      query.perCreatorFeePaise = { $gte: Number(minFeePaise) };
+    }
+
+    let sortOption = { createdAt: -1 };
+    if (sort === 'fee_desc') {
+      sortOption = { perCreatorFeePaise: -1, createdAt: -1 };
+    } else if (sort === 'ending_soon') {
+      sortOption = { applicationDeadline: 1, createdAt: -1 };
+    }
+
     const campaigns = await Campaign.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortOption)
       .skip(skip)
       .limit(Number(limit))
       .populate('brand', 'name')

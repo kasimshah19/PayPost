@@ -1,10 +1,15 @@
 require('dotenv').config();
 
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const clientOrigins = rawClientUrl.split(',').map(s => s.trim()).filter(Boolean);
+const primaryClientUrl = clientOrigins[0] || 'http://localhost:5173';
+
 const env = {
   PORT: process.env.PORT || 5000,
   MONGODB_URI: process.env.MONGODB_URI,
   JWT_SECRET: process.env.JWT_SECRET,
-  CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
+  CLIENT_URL: primaryClientUrl,
+  ALLOWED_ORIGINS: clientOrigins,
   MOCK_PAYOUT_DELAY_MS: process.env.MOCK_PAYOUT_DELAY_MS !== undefined ? Number(process.env.MOCK_PAYOUT_DELAY_MS) : 4000,
   MOCK_PAYOUT_MODE: process.env.MOCK_PAYOUT_MODE || 'random',
   MOCK_PAYOUT_SUCCESS_RATE: process.env.MOCK_PAYOUT_SUCCESS_RATE !== undefined ? Number(process.env.MOCK_PAYOUT_SUCCESS_RATE) : 0.7,

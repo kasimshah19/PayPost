@@ -8,7 +8,8 @@
     "test": "jest --runInBand",
     "db:init": "node src/scripts/initDb.js",
     "wallet:backfill": "node src/scripts/walletBackfill.js",
-    "wallet:check": "node src/scripts/walletCheck.js"
+    "wallet:check": "node src/scripts/walletCheck.js",
+    "seed:demo": "node src/scripts/seedDemo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

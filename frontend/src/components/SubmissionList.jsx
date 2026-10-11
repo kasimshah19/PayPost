@@ -356,178 +356,223 @@ function SubmissionList({ campaignId, onStatusChange }) {
       )}
 
       {/* 1. APPROVE MODAL */}
-      {Boolean(approveTarget) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Approve Deliverable</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Approve and release <span className="font-semibold text-gray-900"><MoneyText paise={approveTarget.feePaise} /></span> from your budget?{' '}
-              {approveBreakdown && (
-                <>Creator receives <span className="font-bold text-emerald-600"><MoneyText paise={approveBreakdown.netPayoutPaise} /></span>.</>
-              )}
-            </p>
-
-            {modalError && (
-              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
-                {modalError}
-              </div>
+      <Modal
+        isOpen={Boolean(approveTarget)}
+        onClose={() => {
+          setApproveTarget(null);
+          setActionNote('');
+          setModalError('');
+        }}
+        title="Approve Deliverable & Release Payout"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Approve and release <span className="font-semibold text-gray-900"><MoneyText paise={approveTarget?.feePaise} /></span> from your budget?{' '}
+            {approveBreakdown && (
+              <>Creator receives <span className="font-bold text-emerald-600"><MoneyText paise={approveBreakdown.netPayoutPaise} /></span>.</>
             )}
+          </p>
 
-            {approveBreakdown ? (
-              <div className="mb-4">
-                <FeeBreakdown breakdown={approveBreakdown} isCreator={false} compact={false} />
-              </div>
-            ) : (
-              <div className="p-4 flex justify-center"><Spinner /></div>
-            )}
-
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Optional praise or feedback for creator:
-              </label>
-              <textarea
-                rows={2}
-                value={actionNote}
-                onChange={(e) => setActionNote(e.target.value)}
-                placeholder="Great job! The deliverable matches our brief perfectly..."
-                className="w-full border-gray-300 rounded-md shadow-sm p-2 border text-xs focus:ring-green-500 focus:border-green-500"
-              />
+          {modalError && (
+            <div className="p-3 text-red-600 bg-red-50 rounded-xl text-sm border border-red-200">
+              {modalError}
             </div>
+          )}
 
-            <div className="flex justify-end gap-3 pt-2 border-t">
-              <button
-                type="button"
-                onClick={() => {
-                  setApproveTarget(null);
-                  setActionNote('');
-                  setModalError('');
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={handleApprove}
-                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
-              >
-                {actionLoading ? 'Approving...' : 'Approve & Release Funds'}
-              </button>
+          {approveBreakdown ? (
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <FeeBreakdown breakdown={approveBreakdown} isCreator={false} compact={false} />
             </div>
+          ) : (
+            <div className="p-4 flex justify-center"><Spinner /></div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Optional praise or feedback for creator:
+            </label>
+            <textarea
+              rows={2}
+              value={actionNote}
+              onChange={(e) => setActionNote(e.target.value)}
+              placeholder="Great job! The deliverable matches our brief perfectly..."
+              className="w-full border-gray-300 rounded-lg p-2.5 border text-sm focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+
+          <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sticky bottom-0 bg-white">
+            <button
+              type="button"
+              onClick={() => {
+                setApproveTarget(null);
+                setActionNote('');
+                setModalError('');
+              }}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleApprove}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+            >
+              {actionLoading ? 'Approving...' : 'Approve & Release Funds'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* 2. REQUEST REVISION MODAL */}
-      {Boolean(revisionTarget) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Request Revision</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Creator will have at least 48 hours to update and resubmit their deliverable.
-              (Revision {revisionTarget.revisionCount + 1} of 2)
-            </p>
+      <Modal
+        isOpen={Boolean(revisionTarget)}
+        onClose={() => {
+          setRevisionTarget(null);
+          setActionNote('');
+          setModalError('');
+        }}
+        title="Request Revision"
+      >
+        <form onSubmit={handleRequestRevision} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Creator will have at least 48 hours to update and resubmit their deliverable.
+            (Revision {(revisionTarget?.revisionCount || 0) + 1} of 2)
+          </p>
 
-            {modalError && (
-              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
-                {modalError}
-              </div>
-            )}
+          {modalError && (
+            <div className="p-3 text-red-600 bg-red-50 rounded-xl text-sm border border-red-200">
+              {modalError}
+            </div>
+          )}
 
-            <form onSubmit={handleRequestRevision}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Revision Feedback (Required, min 5 chars) *
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={actionNote}
-                  onChange={(e) => setActionNote(e.target.value)}
-                  placeholder="Explain clearly what changes or adjustments are required..."
-                  className="w-full border-gray-300 rounded-md shadow-sm p-2.5 border sm:text-sm focus:ring-amber-500 focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3">
+          {/* Quick note suggestion chips */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500">Quick suggestions (tap to append):</p>
+            <div className="flex flex-wrap gap-1.5">
+              {['Please show the product in the first 3 seconds.', 'Please tag our brand account in the post.', 'The audio is unclear, please re-record.', 'Please follow the caption guidelines in the brief.'].map((tpl, i) => (
                 <button
+                  key={i}
                   type="button"
-                  onClick={() => {
-                    setRevisionTarget(null);
-                    setModalError('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                  onClick={() => setActionNote(prev => prev ? `${prev} ${tpl}` : tpl)}
+                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200 text-left transition-colors"
                 >
-                  Cancel
+                  + {tpl}
                 </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading || actionNote.trim().length < 5}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium shadow-xs"
-                >
-                  {actionLoading ? 'Sending...' : 'Send Revision Request'}
-                </button>
-              </div>
-            </form>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Revision Feedback (Required, min 5 chars) *
+            </label>
+            <textarea
+              required
+              rows={4}
+              value={actionNote}
+              onChange={(e) => setActionNote(e.target.value)}
+              placeholder="Explain clearly what changes or adjustments are required..."
+              className="w-full border-gray-300 rounded-lg p-2.5 border text-base focus:ring-amber-500 focus:border-amber-500"
+            />
+          </div>
+
+          <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sticky bottom-0 bg-white">
+            <button
+              type="button"
+              onClick={() => {
+                setRevisionTarget(null);
+                setModalError('');
+              }}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={actionLoading || actionNote.trim().length < 5}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 text-sm font-semibold"
+            >
+              {actionLoading ? 'Sending...' : 'Send Revision Request'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* 3. REJECT MODAL */}
-      {Boolean(rejectTarget) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-red-700 mb-2">Reject Submission</h3>
-            <div className="bg-red-50 border border-red-200 text-red-800 text-sm p-3 rounded-md mb-4">
-              <strong>Warning:</strong> This decision is final. The reserved ₹
-              {(rejectTarget.feePaise / 100).toLocaleString('en-IN')} will return to your available budget and the slot will reopen.
-            </div>
-
-            {modalError && (
-              <div className="mb-4 text-red-600 bg-red-50 p-2.5 rounded text-sm border border-red-200">
-                {modalError}
-              </div>
-            )}
-
-            <form onSubmit={handleReject}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reason for Rejection (Required, min 5 chars) *
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={actionNote}
-                  onChange={(e) => setActionNote(e.target.value)}
-                  placeholder="Explain why this deliverable was rejected..."
-                  className="w-full border-gray-300 rounded-md shadow-sm p-2.5 border sm:text-sm focus:ring-red-500 focus:border-red-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRejectTarget(null);
-                    setModalError('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading || actionNote.trim().length < 5}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm font-medium shadow-xs"
-                >
-                  {actionLoading ? 'Rejecting...' : 'Reject Deliverable'}
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={Boolean(rejectTarget)}
+        onClose={() => {
+          setRejectTarget(null);
+          setActionNote('');
+          setModalError('');
+        }}
+        title="Reject Submission"
+      >
+        <form onSubmit={handleReject} className="space-y-4">
+          <div className="bg-red-50 border border-red-200 text-red-800 text-sm p-3 rounded-xl">
+            <strong>Warning:</strong> This decision is final. The reserved ₹
+            {((rejectTarget?.feePaise || 0) / 100).toLocaleString('en-IN')} will return to your available budget and the slot will reopen.
           </div>
-        </div>
-      )}
+
+          {modalError && (
+            <div className="p-3 text-red-600 bg-red-50 rounded-xl text-sm border border-red-200">
+              {modalError}
+            </div>
+          )}
+
+          {/* Quick note suggestion chips */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500">Quick suggestions (tap to append):</p>
+            <div className="flex flex-wrap gap-1.5">
+              {['The post does not match the campaign brief.', 'The post is not publicly visible.', 'The product is not clearly shown.'].map((tpl, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActionNote(prev => prev ? `${prev} ${tpl}` : tpl)}
+                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 border border-gray-200 text-left transition-colors"
+                >
+                  + {tpl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason for Rejection (Required, min 5 chars) *
+            </label>
+            <textarea
+              required
+              rows={4}
+              value={actionNote}
+              onChange={(e) => setActionNote(e.target.value)}
+              placeholder="Explain why this deliverable was rejected..."
+              className="w-full border-gray-300 rounded-lg p-2.5 border text-base focus:ring-red-500 focus:border-red-500"
+            />
+          </div>
+
+          <div className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sticky bottom-0 bg-white">
+            <button
+              type="button"
+              onClick={() => {
+                setRejectTarget(null);
+                setModalError('');
+              }}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={actionLoading || actionNote.trim().length < 5}
+              className="w-full sm:w-auto min-h-11 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-semibold"
+            >
+              {actionLoading ? 'Rejecting...' : 'Reject Deliverable'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

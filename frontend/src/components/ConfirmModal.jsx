@@ -1,49 +1,78 @@
 import React, { useState } from 'react';
+import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
+import { Textarea } from './ui/Input';
 
-const ConfirmModal = ({ isOpen, title, message, confirmText = 'Confirm', cancelText = 'Cancel', onConfirm, onCancel, requiresReason = false, error = '' }) => {
+export default function ConfirmModal({
+  isOpen,
+  title,
+  message,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  onConfirm,
+  onCancel,
+  requiresReason = false,
+  error = '',
+  loading = false,
+  destructive = true
+}) {
   const [reason, setReason] = useState('');
 
-  if (!isOpen) return null;
+  const handleConfirm = () => {
+    onConfirm(reason);
+  };
+
+  const handleClose = () => {
+    setReason('');
+    onCancel();
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <h3 className="text-xl font-bold mb-4">{title}</h3>
-        <p className="text-gray-600 mb-6">{message}</p>
-        
+    <Modal isOpen={isOpen} onClose={handleClose} title={title}>
+      <div className="space-y-4">
+        {typeof message === 'string' ? (
+          <p className="text-sm text-gray-600 leading-relaxed break-words">{message}</p>
+        ) : (
+          message
+        )}
+
         {requiresReason && (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Reason (required)</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-indigo-500 focus:border-indigo-500"
-              rows="3"
-              placeholder="Please explain why..."
-            />
+          <Textarea
+            id="confirm-modal-reason"
+            label="Reason (required, min 3 characters)"
+            required
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Please provide details..."
+            rows={3}
+          />
+        )}
+
+        {error && (
+          <div
+            className="p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200"
+            role="alert"
+          >
+            {error}
           </div>
         )}
 
-        {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
-
-        <div className="flex justify-end gap-3 mt-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
+        <div className="pt-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sticky bottom-0 bg-white">
+          <Button variant="secondary" onClick={handleClose} disabled={loading} fullWidth className="sm:w-auto">
             {cancelText}
-          </button>
-          <button
-            onClick={() => onConfirm(reason)}
+          </Button>
+          <Button
+            variant={destructive ? 'danger' : 'primary'}
+            onClick={handleConfirm}
+            loading={loading}
             disabled={requiresReason && reason.trim().length < 3}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            fullWidth
+            className="sm:w-auto"
           >
             {confirmText}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
-};
-
-export default ConfirmModal;
+}

@@ -4,8 +4,11 @@ import { rupeesToPaise, paiseToRupees } from '../utils/money';
 import { toInputValue, fromInputValue } from '../utils/date';
 import MoneyText from './MoneyText';
 import FeeBreakdown from './FeeBreakdown';
+import { Button } from './ui/Button';
+import { Input, Textarea } from './ui/Input';
+import { Card } from './ui/Card';
 
-const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => {
+export default function CampaignForm({ initialData, onSubmit, onCancel, editRules = null, copyInfo = null }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -18,6 +21,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
 
   const [errors, setErrors] = useState({});
   const [feePreview, setFeePreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -27,8 +31,8 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
         budgetRupees: initialData.budgetPaise ? paiseToRupees(initialData.budgetPaise) : '',
         perCreatorFeeRupees: initialData.perCreatorFeePaise ? paiseToRupees(initialData.perCreatorFeePaise) : '',
         slots: initialData.slots || '',
-        applicationDeadline: toInputValue(initialData.applicationDeadline),
-        submissionDeadline: toInputValue(initialData.submissionDeadline)
+        applicationDeadline: initialData.applicationDeadline ? toInputValue(initialData.applicationDeadline) : '',
+        submissionDeadline: initialData.submissionDeadline ? toInputValue(initialData.submissionDeadline) : ''
       });
     }
   }, [initialData]);
@@ -37,7 +41,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
     
@@ -89,7 +93,12 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
       submissionDeadline: subIso
     };
 
-    onSubmit(payload, setErrors);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(payload, setErrors);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const budgetPaise = rupeesToPaise(formData.budgetRupees) || 0;
@@ -113,7 +122,7 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
       try {
         const res = await api.get('/fees/preview', { params: { feePaise } });
         setFeePreview(res.data);
-      } catch (err) {
+      } catch {
         setFeePreview(null);
       }
     }, 400);
@@ -122,46 +131,84 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
   }, [feePaise]);
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border max-w-2xl">
-      {errors.form && <div className="bg-red-100 text-red-700 p-3 rounded mb-6 text-sm">{errors.form}</div>}
+    <Card className="max-w-2xl mx-auto">
+      {copyInfo && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-4 rounded-xl mb-6 text-sm flex items-start gap-2">
+          <span className="text-lg">📋</span>
+          <div>
+            <strong>Copied from {copyInfo}.</strong> Choose new application and submission dates.
+          </div>
+        </div>
+      )}
+
+      {errors.form && (
+        <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-200 mb-6 text-sm" role="alert">
+          {errors.form}
+        </div>
+      )}
       
       {editRules?.hasApprovals && (
-        <div className="bg-blue-50 text-blue-800 p-4 rounded-md mb-6 text-sm">
+        <div className="bg-blue-50 text-blue-900 border border-blue-200 p-4 rounded-xl mb-6 text-sm">
           <strong>Note:</strong> Since this campaign has approved creators, budget cannot go below ₹{paiseToRupees(editRules.minBudgetPaise)}, 
           slots cannot be less than {editRules.minSlots}, deadlines can only be extended, and fee changes will only apply to future approvals.
         </div>
       )}
 
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Title</label>
-          <input required type="text" name="title" value={formData.title} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-          {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <Input
+          id="camp-title"
+          label="Campaign Title"
+          name="title"
+          required
+          value={formData.title}
+          onChange={handleChange}
+          placeholder="e.g. Diwali Fashion Reels 2026"
+          error={errors.title}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Description</label>
-          <textarea name="description" value={formData.description} onChange={handleChange} rows="4" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"></textarea>
-          {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
-        </div>
+        <Textarea
+          id="camp-description"
+          label="Campaign Brief / Guidelines"
+          name="description"
+          rows={4}
+          value={formData.description}
+          onChange={handleChange}
+          placeholder="Specify content requirements, do's & don'ts, hashtags, tags..."
+          error={errors.description}
+        />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Budget (₹)</label>
-            <input required type="number" step="1" name="budgetRupees" value={formData.budgetRupees} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-            {errors.budgetPaise && <p className="text-red-500 text-xs mt-1">{errors.budgetPaise}</p>}
-          </div>
+        {/* Money Fields: Paired on md */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            id="camp-budget"
+            label="Total Campaign Budget (₹)"
+            name="budgetRupees"
+            type="number"
+            inputMode="decimal"
+            required
+            value={formData.budgetRupees}
+            onChange={handleChange}
+            placeholder="e.g. 50000"
+            error={errors.budgetPaise}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Fee per creator (₹)</label>
-            <input required type="number" step="1" name="perCreatorFeeRupees" value={formData.perCreatorFeeRupees} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-            {errors.perCreatorFeePaise && <p className="text-red-500 text-xs mt-1">{errors.perCreatorFeePaise}</p>}
-          </div>
+          <Input
+            id="camp-fee"
+            label="Fee Per Creator (₹)"
+            name="perCreatorFeeRupees"
+            type="number"
+            inputMode="decimal"
+            required
+            value={formData.perCreatorFeeRupees}
+            onChange={handleChange}
+            placeholder="e.g. 10000"
+            error={errors.perCreatorFeePaise}
+          />
 
           {feePreview && (
-            <div className="col-span-2 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3 text-xs text-gray-700">
-              <p className="font-medium text-gray-800">
-                You pay <MoneyText paise={feePreview.grossFeePaise} /> per creator. Platform fee, GST and TDS are deducted from the creator's side.
+            <div className="col-span-1 md:col-span-2 bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 text-xs text-gray-700">
+              <p className="font-semibold text-gray-800">
+                You pay <MoneyText paise={feePreview.grossFeePaise} /> per creator. Platform fee, GST and TDS are deducted on the creator's side.
               </p>
               <div className="mt-2">
                 <FeeBreakdown breakdown={feePreview} compact={true} isCreator={false} showExpandToggle={true} />
@@ -171,40 +218,63 @@ const CampaignForm = ({ initialData, onSubmit, onCancel, editRules = null }) => 
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Slots</label>
-          <input required type="number" min="1" name="slots" value={formData.slots} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-          {errors.slots && <p className="text-red-500 text-xs mt-1">{errors.slots}</p>}
+          <Input
+            id="camp-slots"
+            label="Creator Slots"
+            name="slots"
+            type="number"
+            inputMode="numeric"
+            required
+            min="1"
+            value={formData.slots}
+            onChange={handleChange}
+            placeholder="e.g. 5"
+            error={errors.slots}
+          />
         </div>
 
-        {(budgetPaise > 0 && feePaise > 0) && (
-          <div className={`text-sm p-3 rounded-md ${showWarning ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : 'bg-green-50 text-green-800'}`}>
+        {budgetPaise > 0 && feePaise > 0 && (
+          <div className={`text-sm p-3.5 rounded-xl border ${showWarning ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'}`}>
             With this budget you can fund up to <strong>{Math.min(slots, maxPossible)}</strong> of {slots} slots.
             {showWarning && ' (Warning: Budget is not enough for all slots)'}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Application Deadline</label>
-            <input required type="datetime-local" name="applicationDeadline" value={formData.applicationDeadline} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-            {errors.applicationDeadline && <p className="text-red-500 text-xs mt-1">{errors.applicationDeadline}</p>}
-          </div>
+        {/* Deadlines: Paired on md */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            id="camp-app-deadline"
+            label="Application Deadline (IST)"
+            name="applicationDeadline"
+            type="datetime-local"
+            required
+            value={formData.applicationDeadline}
+            onChange={handleChange}
+            error={errors.applicationDeadline}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Submission Deadline</label>
-            <input required type="datetime-local" name="submissionDeadline" value={formData.submissionDeadline} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" />
-            {errors.submissionDeadline && <p className="text-red-500 text-xs mt-1">{errors.submissionDeadline}</p>}
-          </div>
+          <Input
+            id="camp-sub-deadline"
+            label="Submission Deadline (IST)"
+            name="submissionDeadline"
+            type="datetime-local"
+            required
+            value={formData.submissionDeadline}
+            onChange={handleChange}
+            error={errors.submissionDeadline}
+          />
         </div>
-        <p className="text-xs text-gray-500">All times are in IST</p>
 
-        <div className="flex justify-end gap-4 pt-4 border-t">
-          <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save</button>
+        {/* Action Bar: Sticky on mobile above bottom tab bar and safe area */}
+        <div className="pt-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sticky bottom-16 md:static bg-white/95 backdrop-blur-sm sm:bg-transparent pb-safe z-10 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting} fullWidth className="sm:w-auto">
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={isSubmitting} fullWidth className="sm:w-auto">
+            Save Campaign
+          </Button>
         </div>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
-};
-
-export default CampaignForm;
+}

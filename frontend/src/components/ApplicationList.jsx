@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import StatusBadge from './StatusBadge';
-import Spinner from './Spinner';
+import { Skeleton } from './ui/Skeleton';
+import { Button } from './ui/Button';
+import { ResponsiveList } from './ui/ResponsiveList';
+import ConfirmModal from './ConfirmModal';
+import { formatDateIST } from '../utils/date';
+import { useToast } from './ui/Toast';
 
-function ApplicationList({ campaignId, onStatusChange, refreshKey }) {
+export default function ApplicationList({ campaignId, onStatusChange, refreshKey }) {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const toast = useToast();
+
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
 
   useEffect(() => {
     fetchApplications();
@@ -17,77 +26,160 @@ function ApplicationList({ campaignId, onStatusChange, refreshKey }) {
     try {
       const res = await api.get(`/campaigns/${campaignId}/applications`);
       setApplications(res.data.applications || []);
-    } catch (err) {
+    } catch {
       setError('Failed to load applications');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAction = async (appId, action, data = {}) => {
+  const handleApprove = async () => {
+    if (!approveTarget) return;
     setActionLoading(true);
     try {
-      await api.post(`/applications/${appId}/${action}`, data);
+      await api.post(`/applications/${approveTarget._id}/approve`);
+      toast.success(`Approved ${approveTarget.creator?.name}`);
+      setApproveTarget(null);
       await fetchApplications();
       if (onStatusChange) onStatusChange();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to perform action');
+      toast.error(err.response?.data?.message || 'Failed to approve application');
     } finally {
       setActionLoading(false);
     }
   };
 
-  if (loading) return <Spinner />;
-  if (error) return <div className="text-red-500 p-4">{error}</div>;
-  if (applications.length === 0) return <div className="p-4 text-gray-500">No applications yet.</div>;
+  const handleReject = async (reason) => {
+    if (!rejectTarget) return;
+    setActionLoading(true);
+    try {
+      await api.post(`/applications/${rejectTarget._id}/reject`, { note: reason });
+      toast.info(`Rejected application from ${rejectTarget.creator?.name}`);
+      setRejectTarget(null);
+      await fetchApplications();
+      if (onStatusChange) onStatusChange();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reject application');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) return <Skeleton variant="list" count={3} />;
+  if (error) return <div className="text-red-600 p-4">{error}</div>;
 
   return (
     <div className="space-y-4">
-      {applications.map(app => (
-        <div key={app._id} className="border rounded-lg p-4 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="font-bold">{app.creator?.name}</span>
+      <ResponsiveList
+        items={applications}
+        emptyText="No applications submitted for this campaign yet."
+        headers={['Creator', 'Pitch', 'Date', 'Status', 'Actions']}
+        renderCard={(app) => (
+          <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <strong className="text-gray-900 text-sm block">{app.creator?.name}</strong>
+                <span className="text-xs text-gray-500">{formatDateIST(app.createdAt)}</span>
+              </div>
               <StatusBadge status={app.status} />
-              {app.status === 'approved' && (
-                <span className="text-xs flex items-center gap-1 font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded border">
-                  Submission: <StatusBadge status={app.submission?.status || 'not_submitted'} />
-                </span>
-              )}
             </div>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{app.pitch || <span className="italic text-gray-400">No pitch provided</span>}</p>
-            <p className="text-xs text-gray-500 mt-2">Applied on {new Date(app.createdAt).toLocaleDateString()}</p>
-          </div>
-          
-          <div className="flex gap-2 shrink-0">
+
+            <p className="text-xs text-gray-600 line-clamp-3 whitespace-pre-wrap break-words italic">
+              {app.pitch ? `"${app.pitch}"` : 'No pitch provided.'}
+            </p>
+
             {app.status === 'applied' && (
-              <>
-                <button 
-                  onClick={() => handleAction(app._id, 'approve')}
+              <div className="pt-2 border-t border-gray-100 flex gap-2">
+                <Button
+                  variant="primary"
+                  onClick={() => setApproveTarget(app)}
                   disabled={actionLoading}
-                  className="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 disabled:opacity-50"
+                  className="flex-1 text-xs min-h-11"
                 >
                   Approve
-                </button>
-                <button 
-                  onClick={() => {
-                    const note = prompt("Reason for rejection (optional):");
-                    if (note !== null) {
-                      handleAction(app._id, 'reject', { note });
-                    }
-                  }}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setRejectTarget(app)}
                   disabled={actionLoading}
-                  className="px-3 py-1 bg-red-100 text-red-700 text-sm font-medium rounded hover:bg-red-200 disabled:opacity-50"
+                  className="flex-1 text-xs min-h-11 text-red-600 hover:text-red-700"
                 >
                   Reject
-                </button>
-              </>
+                </Button>
+              </div>
             )}
           </div>
-        </div>
-      ))}
+        )}
+        renderRow={(app) => (
+          <tr className="hover:bg-gray-50 text-xs">
+            <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{app.creator?.name}</td>
+            <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{app.pitch || 'None'}</td>
+            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateIST(app.createdAt)}</td>
+            <td className="px-4 py-3 whitespace-nowrap">
+              <StatusBadge status={app.status} />
+            </td>
+            <td className="px-4 py-3 whitespace-nowrap">
+              {app.status === 'applied' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setApproveTarget(app)}
+                    disabled={actionLoading}
+                    className="text-xs px-2.5 py-1 min-h-9"
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setRejectTarget(app)}
+                    disabled={actionLoading}
+                    className="text-xs px-2.5 py-1 min-h-9 text-red-600"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              )}
+            </td>
+          </tr>
+        )}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(approveTarget)}
+        title="Approve Creator Application"
+        message={
+          approveTarget ? (
+            <p>
+              Approve <strong>{approveTarget.creator?.name}</strong>? Their slot fee will be locked from campaign budget.
+            </p>
+          ) : null
+        }
+        confirmText="Approve"
+        destructive={false}
+        loading={actionLoading}
+        onConfirm={handleApprove}
+        onCancel={() => setApproveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(rejectTarget)}
+        title="Reject Application"
+        message={
+          rejectTarget ? (
+            <p>
+              Are you sure you want to reject the application from <strong>{rejectTarget.creator?.name}</strong>?
+            </p>
+          ) : null
+        }
+        confirmText="Reject Application"
+        destructive={true}
+        requiresReason={false}
+        loading={actionLoading}
+        onConfirm={handleReject}
+        onCancel={() => setRejectTarget(null)}
+      />
     </div>
   );
 }
-
-export default ApplicationList;

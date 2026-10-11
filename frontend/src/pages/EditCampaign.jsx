@@ -2,14 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import CampaignForm from '../components/CampaignForm';
-import Spinner from '../components/Spinner';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Skeleton } from '../components/ui/Skeleton';
+import { useToast } from '../components/ui/Toast';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-function EditCampaign() {
+export default function EditCampaign() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
+
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useDocumentTitle(campaign ? `Edit: ${campaign.title}` : 'Edit Campaign');
 
   useEffect(() => {
     fetchCampaign();
@@ -23,7 +30,7 @@ function EditCampaign() {
         return;
       }
       setCampaign(res.data);
-    } catch (err) {
+    } catch {
       setError('Failed to load campaign');
     } finally {
       setLoading(false);
@@ -33,11 +40,12 @@ function EditCampaign() {
   const handleSubmit = async (payload, setErrors) => {
     try {
       await api.patch(`/campaigns/${id}`, payload);
+      toast.success('Campaign updated successfully!');
       navigate(`/brand/campaigns/${id}`);
     } catch (err) {
       if (err.response?.data?.errors) {
         const errMap = {};
-        err.response.data.errors.forEach(e => {
+        err.response.data.errors.forEach((e) => {
           const key = e.field || (e.path && e.path.length ? e.path[0] : null);
           if (key) errMap[key] = e.message;
         });
@@ -48,13 +56,23 @@ function EditCampaign() {
     }
   };
 
-  if (loading) return <Spinner />;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
+  if (loading) return <Skeleton variant="card" count={1} />;
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 text-red-700 rounded-xl border border-red-200 text-center">
+        {error}
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Edit Campaign: {campaign.title}</h1>
-      <CampaignForm 
+    <div className="space-y-6">
+      <PageHeader
+        title={`Edit: ${campaign.title}`}
+        subtitle="Update campaign parameters, budget, slots, or extended deadlines"
+      />
+
+      <CampaignForm
         initialData={campaign}
         editRules={campaign.editRules}
         onSubmit={handleSubmit}
@@ -63,5 +81,3 @@ function EditCampaign() {
     </div>
   );
 }
-
-export default EditCampaign;

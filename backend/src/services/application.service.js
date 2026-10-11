@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { CAMPAIGN_STATUS, APPLICATION_STATUS, ALLOWED_APPLICATION_TRANSITIONS, NOTIFICATION_EVENTS } = require('../constants');
 const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
+const { evaluateApprovability } = require('../utils/campaignApprovability');
 const notificationService = require('./notificationService');
 
 class ApplicationService {
@@ -263,11 +264,9 @@ class ApplicationService {
 
       if (!updatedCampaign) {
         const currentCampaign = await Campaign.findById(campaign._id).session(session);
-        if (currentCampaign.slots - currentCampaign.approvedCount <= 0) {
-          const err = new Error('No slots left'); err.status = 409; throw err;
-        }
-        if (currentCampaign.budgetPaise - (currentCampaign.reservedPaise + currentCampaign.paidOutPaise) < fee) {
-          const err = new Error(`Not enough budget: ₹${paiseToRupees(currentCampaign.budgetPaise - currentCampaign.reservedPaise - currentCampaign.paidOutPaise)} available, ₹${paiseToRupees(fee)} needed`);
+        const { cannotApproveReason } = evaluateApprovability(currentCampaign);
+        if (cannotApproveReason) {
+          const err = new Error(cannotApproveReason);
           err.status = 409;
           throw err;
         }
