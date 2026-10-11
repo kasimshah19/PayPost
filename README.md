@@ -25,7 +25,7 @@
   <i>Engineered for Indian Creator Ecosystems (Inspired by UGCIndia) with Strict Concurrency Safety, Zero-Creation Financial Ledger, Dynamic Tax Engine, and Mobile-First Architecture.</i>
 </p>
 
-[🌐 Live Frontend Demo (Vercel)](https://paypost.vercel.app) • [⚙️ Live API Gateway (Render)](https://paypost-backend.onrender.com/api/health) • [📊 View 25 Architectural Diagrams](docs/diagrams/README.md) • [🧪 Testing Guide](docs/TESTING.md) • [📋 Detailed Test Cases (15 Suites)](docs/TEST_CASES.md)
+[🌐 Live Frontend Demo (Vercel)](https://paypost.vercel.app) • [⚙️ Live API Gateway (Render)](https://paypost-backend.onrender.com/api/health) • [📖 Technical Documentation](docs/DOCUMENTATION.md) • [📊 25 Diagrams](docs/diagrams/README.md) • [📋 Test Cases Matrix](docs/TEST_CASES.md) • [🧪 Testing Guide](docs/TESTING.md)
 
 </div>
 
