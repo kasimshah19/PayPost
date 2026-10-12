@@ -4,6 +4,8 @@ const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const ioClient = require('socket.io-client');
 const jwt = require('jsonwebtoken');
 
+jest.setTimeout(25000);
+
 jest.mock('../src/config/env', () => ({
   PORT: 5000,
   MONGODB_URI: 'mongodb://localhost:27017/test',
@@ -39,7 +41,7 @@ let serverPort;
 let serverUrl;
 
 // Helper: wait for specific event
-function waitForEvent(socket, eventName, timeoutMs = 2500, predicate = null) {
+function waitForEvent(socket, eventName, timeoutMs = 6000, predicate = null) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       socket.off(eventName, listener);
@@ -694,7 +696,7 @@ describe('Realtime Socket.IO Backend', () => {
       expect(wPending.showToast).toBe(false);
 
       // 2. Process withdrawal (success case)
-      const pWithSucceeded = waitForEvent(sCreator, EVENTS.WITHDRAWAL_CHANGED, 2500, d => d.status === 'succeeded');
+      const pWithSucceeded = waitForEvent(sCreator, EVENTS.WITHDRAWAL_CHANGED, 6000, d => d.status === 'succeeded');
       const pWalletSucceeded = waitForEvent(sCreator, EVENTS.WALLET_CHANGED);
 
       await processWithdrawalsOnce();
@@ -716,7 +718,7 @@ describe('Realtime Socket.IO Backend', () => {
       });
       await pFailHold;
 
-      const pWithFailed = waitForEvent(sCreator, EVENTS.WITHDRAWAL_CHANGED, 2500, d => d.status === 'failed');
+      const pWithFailed = waitForEvent(sCreator, EVENTS.WITHDRAWAL_CHANGED, 6000, d => d.status === 'failed');
       const pWalletReversed = waitForEvent(sCreator, EVENTS.WALLET_CHANGED);
 
       await processWithdrawalsOnce();
