@@ -336,7 +336,7 @@ export default function CreatorWallet() {
                     <span className="font-bold text-gray-900 tabular-nums">
                       <MoneyText paise={w.amountPaise} />
                     </span>
-                    <p className="text-xs text-gray-500">{formatDateIST(w.createdAt)}</p>
+                    <p className="text-xs text-gray-500">{formatDateIST(w.createdAt || w.requestedAt)}</p>
                   </div>
                   <StatusBadge status={w.status} />
                 </div>
@@ -362,7 +362,7 @@ export default function CreatorWallet() {
             )}
             renderRow={(w) => (
               <tr className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateIST(w.createdAt)}</td>
+                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateIST(w.createdAt || w.requestedAt)}</td>
                 <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums whitespace-nowrap">
                   <MoneyText paise={w.amountPaise} />
                 </td>

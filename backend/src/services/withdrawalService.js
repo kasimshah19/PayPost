@@ -39,6 +39,8 @@ function formatWithdrawal(w) {
     },
     failureReason: doc.failureReason || null,
     requestedAt: doc.requestedAt,
+    createdAt: doc.createdAt || doc.requestedAt,
+    updatedAt: doc.updatedAt,
     processedAt: doc.processedAt || null,
     providerRef: doc.providerRef || null,
     attempts: doc.attempts || 0,

@@ -23,6 +23,7 @@ export default function Notifications() {
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [workerResult, setWorkerResult] = useState(null);
   const [devActionLoading, setDevActionLoading] = useState(false);
+  const [activeClockAction, setActiveClockAction] = useState('tonight_10pm');
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchStatus = async () => {
@@ -64,6 +65,7 @@ export default function Notifications() {
   }, 5000, true);
 
   const handleDevClockAction = async (action) => {
+    setActiveClockAction(action);
     setDevActionLoading(true);
     try {
       await api.post('/dev/clock', { action });
@@ -149,7 +151,7 @@ export default function Notifications() {
           <div className="pt-3 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                variant="primary"
+                variant={activeClockAction === 'tonight_10pm' ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => handleDevClockAction('tonight_10pm')}
                 disabled={devActionLoading}
@@ -158,7 +160,7 @@ export default function Notifications() {
                 Set to tonight 10:00 PM IST
               </Button>
               <Button
-                variant="secondary"
+                variant={activeClockAction === 'next_9am' ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => handleDevClockAction('next_9am')}
                 disabled={devActionLoading}
@@ -167,7 +169,7 @@ export default function Notifications() {
                 Jump to next 9:00 AM IST
               </Button>
               <Button
-                variant="secondary"
+                variant={activeClockAction === 'realtime' ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => handleDevClockAction('realtime')}
                 disabled={devActionLoading}
