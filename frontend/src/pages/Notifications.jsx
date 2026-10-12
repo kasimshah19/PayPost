@@ -7,8 +7,8 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ResponsiveList } from '../components/ui/ResponsiveList';
 import { Skeleton } from '../components/ui/Skeleton';
+import { Icon } from '../components/ui/Icon';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { usePolling } from '../hooks/usePolling';
 import { useSocket } from '../realtime/SocketProvider';
 import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
