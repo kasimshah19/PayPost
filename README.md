@@ -334,7 +334,27 @@ cp frontend/.env.example frontend/.env
 - **Backend (`.env`)**:
   - `REALTIME_ENABLED=true`: Toggles the Socket.IO server engine. When `false` or absent, the server gracefully skips Socket initialization and all emits become silent no-ops without altering business execution.
 - **Frontend (`.env`)**:
-  - `VITE_SOCKET_URL=http://localhost:5000`: Explicit Socket.IO server connection URL. If omitted, falls back automatically to `VITE_API_URL` with `/api` stripped.
+  - `VITE_SOCKET_URL=http://localhost:5000`: Explicit Socket.IO server connection URL. In development, falls back to `http://localhost:5000`. In production, if unset, real-time defaults to offline rather than spamming localhost.
+
+#### Production Deployment Runbook (Render & Vercel)
+- **Render Backend Web Service (`Environment Variables`)**:
+  - `PORT`: Provided dynamically by Render.
+  - `MONGODB_URI`: MongoDB Atlas replica set connection string.
+  - `JWT_SECRET`: 32+ character cryptographic secret.
+  - `CLIENT_URL`: `https://pay-post.vercel.app,http://localhost:5173` *(exact Vercel frontend domain; spaces and trailing slashes are trimmed automatically)*.
+  - `REALTIME_ENABLED`: `true`
+  - `WORKER_ENABLED`: `true`
+  - `NOTIFICATION_WORKER_ENABLED`: `true`
+- **Vercel Frontend Project (`Project Settings -> Environment Variables`)**:
+  - `VITE_API_URL`: `https://paypost.onrender.com/api`
+  - `VITE_SOCKET_URL`: `https://paypost.onrender.com`
+  - *Build-time note*: Vite bakes `VITE_*` variables into the JavaScript bundle at build time. Whenever you edit environment variables on Vercel, you must trigger a **Redeploy**.
+- **Verify Deployed WebSocket / Socket.IO Health**:
+  ```bash
+  curl "https://paypost.onrender.com/socket.io/?EIO=4&transport=polling"
+  ```
+  A healthy response returns an Engine.IO packet starting with `0` and a session ID JSON:
+  `0{"sid":"...","upgrades":["websocket"],"pingInterval":25000,"pingTimeout":20000}`
 
 
 ### 3. Install Dependencies

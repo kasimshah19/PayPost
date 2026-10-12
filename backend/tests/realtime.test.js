@@ -685,7 +685,7 @@ describe('Realtime Socket.IO Backend', () => {
       const withRes = await withdrawalService.requestWithdrawal({
         userId: creatorUser._id,
         amountPaise: 50000,
-        upiId: 'creator@okbank',
+        upiId: 'success@mock',
         clientKey: 'req-1'
       });
 

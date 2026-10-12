@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -33,17 +33,27 @@ function PageFallback() {
   );
 }
 
+// Resets error boundary automatically when the route/pathname changes
+function RouteErrorBoundary({ children }) {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname}>
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <ToastProvider>
         <Router>
           <SocketProvider>
-            <ErrorBoundary>
-              <AppShell>
-              <Suspense fallback={<PageFallback />}>
-                <Routes>
-                  <Route path="/" element={<Home />} />
+            <AppShell>
+              <RouteErrorBoundary>
+                <Suspense fallback={<PageFallback />}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
 
@@ -128,10 +138,10 @@ function App() {
                   {/* Catch-all 404 Route */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-              </Suspense>
+                </Suspense>
+              </RouteErrorBoundary>
             </AppShell>
-          </ErrorBoundary>
-        </SocketProvider>
+          </SocketProvider>
       </Router>
       </ToastProvider>
     </AuthProvider>

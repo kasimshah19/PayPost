@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint src",
+    "test:unit": "node --test \"src/realtime/*.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {

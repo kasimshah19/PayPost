@@ -109,6 +109,8 @@ export function useRealtimeRefetch(eventNames, refetchFn, { debounceMs = 300, fi
     };
   }, []);
 
+  const eventKey = Array.isArray(eventNames) ? eventNames.join(',') : eventNames;
+
   // Subscribe to specified events PLUS the internal 'resync' signal
   useEffect(() => {
     const rawEvents = Array.isArray(eventNames) ? eventNames : [eventNames];
@@ -119,5 +121,6 @@ export function useRealtimeRefetch(eventNames, refetchFn, { debounceMs = 300, fi
     });
 
     return unsubscribe;
-  }, [subscribe, handleEvent, Array.isArray(eventNames) ? eventNames.join(',') : eventNames]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscribe, handleEvent, eventKey]);
 }

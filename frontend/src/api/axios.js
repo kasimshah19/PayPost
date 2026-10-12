@@ -1,7 +1,19 @@
 import axios from 'axios';
 
+function getApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+  if (configured && typeof configured === 'string' && configured.trim()) {
+    return configured.trim();
+  }
+  if (!import.meta.env.PROD) {
+    return 'http://localhost:5000/api';
+  }
+  console.warn('PayPost: VITE_API_URL is not set in production. REST API requests may fail.');
+  return '';
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: getApiBaseUrl(),
 });
 
 api.interceptors.request.use((config) => {

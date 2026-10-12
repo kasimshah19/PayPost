@@ -4,14 +4,19 @@
  */
 function parseAllowedOrigins(clientUrlOrArray) {
   if (!clientUrlOrArray) return ['http://localhost:5173'];
-  if (Array.isArray(clientUrlOrArray)) return clientUrlOrArray.map(s => s.trim()).filter(Boolean);
-  return String(clientUrlOrArray).split(',').map(s => s.trim()).filter(Boolean);
+  const rawList = Array.isArray(clientUrlOrArray)
+    ? clientUrlOrArray
+    : String(clientUrlOrArray).split(',');
+  return rawList
+    .map(s => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 }
 
 function isOriginAllowed(origin, allowedOrigins) {
   if (!origin) return true; // server-to-server or mobile app
+  const sanitizedOrigin = origin.trim().replace(/\/+$/, '');
   const list = parseAllowedOrigins(allowedOrigins);
-  return list.includes(origin);
+  return list.includes(sanitizedOrigin);
 }
 
 module.exports = {

@@ -16,6 +16,8 @@ export function useRealtime(eventNames, handler) {
     handlerRef.current = handler;
   }, [handler]);
 
+  const eventKey = Array.isArray(eventNames) ? eventNames.join(',') : eventNames;
+
   useEffect(() => {
     if (!eventNames || (Array.isArray(eventNames) && eventNames.length === 0)) {
       return;
@@ -28,5 +30,6 @@ export function useRealtime(eventNames, handler) {
     });
 
     return unsubscribe;
-  }, [subscribe, Array.isArray(eventNames) ? eventNames.join(',') : eventNames]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscribe, eventKey]);
 }

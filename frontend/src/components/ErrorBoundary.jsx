@@ -20,10 +20,14 @@ export class ErrorBoundary extends React.Component {
     window.location.reload();
   };
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-[70dvh] flex items-center justify-center p-4">
+        <div className="min-h-[50dvh] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm max-w-md w-full p-6 text-center space-y-4">
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-xl font-bold">
               !
@@ -37,7 +41,7 @@ export class ErrorBoundary extends React.Component {
                 Reload page
               </Button>
               <Link to="/" className="w-full">
-                <Button variant="secondary" fullWidth>
+                <Button variant="secondary" fullWidth onClick={this.handleReset}>
                   Go Home
                 </Button>
               </Link>

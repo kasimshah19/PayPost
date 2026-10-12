@@ -235,6 +235,13 @@ Follow this script to demonstrate the complete lifecycle during the live call:
 15. **Q: How would you scale this to several servers?**
     - *A*: Attach the official `@socket.io/redis-adapter` (or Redis Streams adapter). When an instance emits to `user:<userId>`, the adapter broadcasts the message across Redis Pub/Sub so that whichever cluster instance holds the user's active socket will deliver it.
 
+### Real-Time Production Troubleshooting Checklist
+- **Socket Badge Shows "Offline"**:
+  1. **Check `VITE_SOCKET_URL` & `VITE_API_URL`**: If omitted in Vercel, the production bundle intentionally sets status to "Offline" (no localhost polling or spamming). Add `VITE_SOCKET_URL=https://paypost.onrender.com` in Vercel and redeploy.
+  2. **Check Render Free Tier Spin-Down**: Free Render instances sleep after 15 minutes of inactivity. When asleep, socket handshakes fail until the instance wakes (~45s). The client badge will transition to "Reconnecting..." and then "Live" once awake.
+  3. **Check `CLIENT_URL` CORS on Render**: Ensure Render's `CLIENT_URL` includes `https://pay-post.vercel.app` (without trailing slash). Sockets reject unlisted origins during the handshake.
+  4. **Verify Live Socket Engine**: Run `curl "https://paypost.onrender.com/socket.io/?EIO=4&transport=polling"`. If it returns `0{"sid":...}`, the server engine is active.
+
 
 ---
 

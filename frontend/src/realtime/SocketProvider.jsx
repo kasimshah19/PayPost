@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { getToastConfig } from './eventToast';
+import { getSocketUrl } from './socketUrl';
 
 export const SocketContext = createContext({
   connected: false,
@@ -11,15 +12,6 @@ export const SocketContext = createContext({
   subscribe: () => () => {},
   triggerResync: () => {}
 });
-
-// Calculate socket server origin
-function getSocketUrl() {
-  if (import.meta.env.VITE_SOCKET_URL) {
-    return import.meta.env.VITE_SOCKET_URL;
-  }
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  return apiUrl.replace(/\/api\/?$/, '');
-}
 
 export function SocketProvider({ children }) {
   const { token, user, logout } = useAuth();
@@ -106,15 +98,23 @@ export function SocketProvider({ children }) {
       return;
     }
 
+    const socketUrl = getSocketUrl(import.meta.env);
+    if (!socketUrl) {
+      console.warn('PayPost: VITE_SOCKET_URL / VITE_API_URL is not set, real-time is off');
+      setConnected(false);
+      setStatus('offline');
+      return;
+    }
+
     setStatus('connecting');
 
-    const socketUrl = getSocketUrl();
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.5,
       path: '/socket.io'
     });
 
