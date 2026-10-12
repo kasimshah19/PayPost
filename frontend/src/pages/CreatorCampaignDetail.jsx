@@ -15,6 +15,7 @@ import { Modal } from '../components/ui/Modal';
 import { Textarea } from '../components/ui/Input';
 import { useToast } from '../components/ui/Toast';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function CreatorCampaignDetail() {
   const { id } = useParams();
@@ -49,6 +50,20 @@ export default function CreatorCampaignDetail() {
       setLoading(false);
     }
   };
+
+  // Real-time updates for open campaign, application status, and submission block
+  useRealtimeRefetch(
+    ['campaign:changed', 'application:changed', 'submission:changed'],
+    fetchCampaign,
+    {
+      filter: (payload) => {
+        if (payload?.campaignId) {
+          return String(payload.campaignId) === String(id);
+        }
+        return true;
+      }
+    }
+  );
 
   const handleApplySubmit = async () => {
     setApplyLoading(true);

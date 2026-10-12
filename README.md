@@ -216,7 +216,24 @@ $$\text{Financial Invariant Proof: } 436,000 + 50,000 + 9,000 + 5,000 = 500,000 
 
 ---
 
-## ⚡ Concurrency & Race Condition Defense Matrix
+## ⚡ Realtime Architecture: Signal + Refetch (Socket.IO)
+
+PayPost uses **Socket.IO** for live screen synchronization across brand and creator views, adhering to four core engineering rules:
+
+1. **Signal + Refetch**: Sockets do NOT stream sensitive business data (budgets, reserved/paid amounts, emails, phone numbers, UPI IDs, pitches, notes, or post URLs). They emit only lightweight signals containing resource IDs and status indicators (`{ type: "application:changed", applicationId, status }`). The frontend receives the signal and refetches authenticated data from the canonical REST API.
+2. **Emit Only After Commit**: Inside database transactions, events are queued into a transaction-keyed `WeakMap`. If the transaction rolls back or is retried due to transient conflicts, the event queue is cleared. Events are flushed and sent over WebSocket only after the transaction commits successfully.
+3. **Server Decides Rooms**: Clients cannot arbitrarily subscribe to rooms. Upon JWT handshake authentication, sockets are strictly confined to `user:<userId>` and `role:<role>`. Any client-side join requests are ignored.
+4. **Resync on Reconnect & Zero Event Replay**: Sockets do not maintain persistent offline message streams. When a disconnected client reconnects, or when a background tab wakes up after >30s, the client broadcasts an internal `resync` event to fetch fresh REST data.
+
+### Assumptions & Notification Boundaries
+- **In-App Live Updates & Toasts**: Real-time Socket.IO notifications and toasts are purely **in-app transient UI conveniences**. They are **not** subject to TRAI quiet hours (9:00 PM – 9:00 AM IST) or user communication opt-outs.
+- **Asynchronous WhatsApp/Email Outbox Queue**: The persistent notification outbox queue remains the formal, statutory notification channel dictated by the platform requirements, complete with strict IST quiet hours deferrals, opt-out checks, and worker dispatching. Sockets do not replace the outbox queue; they only keep open browser tabs synchronized.
+
+### Known Gaps & Production Scaling
+- **Single Server Instance**: The current Socket.IO implementation runs on a single server instance. Scaling out horizontally across multiple container replicas requires the `@socket.io/redis-adapter`.
+- **No Event Replay**: Sockets do not store missed events in offline queues. The frontend handles connection drops via automatic resync on reconnect.
+- **Free-Tier Sleep Cycles**: On free hosting tiers (e.g. Render spin-downs), idle connections close automatically; upon waking, the client automatically falls back to polling and reconnects when the service responds.
+
 
 PayPost was designed from day one to withstand aggressive concurrent traffic spikes (such as thousands of creators applying for limited slots during a viral brand launch).
 
@@ -306,12 +323,19 @@ A dedicated, comprehensive architectural library is documented with full visual 
 git clone https://github.com/kasimshah19/PayPost.git
 cd PayPost
 
-# Configure Backend Environment
+# Configure Backend Environment (includes REALTIME_ENABLED=true)
 cp backend/.env.example backend/.env
 
-# Configure Frontend Environment
+# Configure Frontend Environment (includes VITE_SOCKET_URL)
 cp frontend/.env.example frontend/.env
 ```
+
+#### Realtime Environment Variables
+- **Backend (`.env`)**:
+  - `REALTIME_ENABLED=true`: Toggles the Socket.IO server engine. When `false` or absent, the server gracefully skips Socket initialization and all emits become silent no-ops without altering business execution.
+- **Frontend (`.env`)**:
+  - `VITE_SOCKET_URL=http://localhost:5000`: Explicit Socket.IO server connection URL. If omitted, falls back automatically to `VITE_API_URL` with `/api` stripped.
+
 
 ### 3. Install Dependencies
 

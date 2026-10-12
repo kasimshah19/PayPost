@@ -7,6 +7,7 @@ const { WITHDRAWAL_STATUS } = require('../constants');
 const mockPayoutProvider = require('../services/mockPayoutProvider');
 const { finalizeWithdrawal } = require('../services/withdrawalService');
 const env = require('../config/env');
+const { emitToUser, EVENTS } = require('../realtime');
 
 let isProcessing = false;
 
@@ -41,6 +42,12 @@ async function processWithdrawalsOnce() {
     if (!claimed) {
       break; // No more pending withdrawals
     }
+
+    emitToUser(claimed.user, EVENTS.WITHDRAWAL_CHANGED, {
+      withdrawalId: claimed._id,
+      status: 'processing',
+      showToast: false
+    });
 
     try {
       // Call provider OUTSIDE any DB transaction

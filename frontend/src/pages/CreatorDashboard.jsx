@@ -17,10 +17,13 @@ import CreatorApplicationList from '../components/CreatorApplicationList';
 import CreatorSubmissionList from '../components/CreatorSubmissionList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePolling } from '../hooks/usePolling';
+import { useSocket } from '../realtime/SocketProvider';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function CreatorDashboard() {
   useDocumentTitle('Creator Dashboard');
   const { user } = useAuth();
+  const { connected } = useSocket();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -59,8 +62,10 @@ export default function CreatorDashboard() {
     }
   };
 
-  const fetchCampaigns = async () => {
-    setLoading(true);
+  const fetchCampaigns = async (isBackground = false) => {
+    if (!isBackground) {
+      setLoading(true);
+    }
     try {
       const params = {};
       if (debouncedQuery) params.q = debouncedQuery;
@@ -72,7 +77,9 @@ export default function CreatorDashboard() {
     } catch {
       // Handled
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
   };
 
@@ -80,7 +87,17 @@ export default function CreatorDashboard() {
     fetchDashboardData();
   }, []);
 
-  usePolling(fetchDashboardData, 10000, true);
+  // Real-time updates for Next Actions, Applications, Submissions and Wallet
+  useRealtimeRefetch(
+    ['application:changed', 'submission:changed', 'campaign:changed', 'wallet:changed', 'withdrawal:changed'],
+    fetchDashboardData
+  );
+
+  // Real-time updates for Discover campaigns
+  useRealtimeRefetch('discover:changed', () => fetchCampaigns(true));
+
+  // Fallback polling when socket is disconnected
+  usePolling(fetchDashboardData, 10000, !connected);
 
   useEffect(() => {
     fetchCampaigns();

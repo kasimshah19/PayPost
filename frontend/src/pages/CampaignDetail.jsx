@@ -15,6 +15,7 @@ import { Tabs } from '../components/ui/Tabs';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function CampaignDetail() {
   const { id } = useParams();
@@ -41,6 +42,20 @@ export default function CampaignDetail() {
   const handleDataRefresh = () => {
     setRefreshKey(k => k + 1);
   };
+
+  // Real-time refetching filtered to open campaignId
+  useRealtimeRefetch(
+    ['campaign:changed', 'application:changed', 'submission:changed'],
+    handleDataRefresh,
+    {
+      filter: (payload) => {
+        if (payload?.campaignId) {
+          return String(payload.campaignId) === String(id);
+        }
+        return true;
+      }
+    }
+  );
 
   const fetchCampaign = async () => {
     try {
@@ -258,6 +273,7 @@ export default function CampaignDetail() {
           <SubmissionList
             campaignId={id}
             onStatusChange={handleDataRefresh}
+            refreshKey={refreshKey}
           />
         </Card>
       )}

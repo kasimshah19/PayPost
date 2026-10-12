@@ -1,7 +1,9 @@
 require('dotenv').config();
 
+const { parseAllowedOrigins } = require('../utils/corsHelper');
+
 const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-const clientOrigins = rawClientUrl.split(',').map(s => s.trim()).filter(Boolean);
+const clientOrigins = parseAllowedOrigins(rawClientUrl);
 const primaryClientUrl = clientOrigins[0] || 'http://localhost:5173';
 
 const env = {
@@ -10,6 +12,7 @@ const env = {
   JWT_SECRET: process.env.JWT_SECRET,
   CLIENT_URL: primaryClientUrl,
   ALLOWED_ORIGINS: clientOrigins,
+  REALTIME_ENABLED: process.env.REALTIME_ENABLED !== 'false', // Default true
   MOCK_PAYOUT_DELAY_MS: process.env.MOCK_PAYOUT_DELAY_MS !== undefined ? Number(process.env.MOCK_PAYOUT_DELAY_MS) : 4000,
   MOCK_PAYOUT_MODE: process.env.MOCK_PAYOUT_MODE || 'random',
   MOCK_PAYOUT_SUCCESS_RATE: process.env.MOCK_PAYOUT_SUCCESS_RATE !== undefined ? Number(process.env.MOCK_PAYOUT_SUCCESS_RATE) : 0.7,

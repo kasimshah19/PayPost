@@ -15,9 +15,12 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { Icon } from '../components/ui/Icon';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePolling } from '../hooks/usePolling';
+import { useSocket } from '../realtime/SocketProvider';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function CreatorWallet() {
   useDocumentTitle('Wallet');
+  const { connected } = useSocket();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [wallet, setWallet] = useState(null);
@@ -206,7 +209,14 @@ export default function CreatorWallet() {
     }
   };
 
-  usePolling(pollActiveWithdrawal, 3000, Boolean(wallet?.activeWithdrawal));
+  // Real-time updates for wallet balance, ledger and withdrawals
+  useRealtimeRefetch(['wallet:changed', 'withdrawal:changed'], async () => {
+    await pollActiveWithdrawal();
+    fetchLedgerEntries();
+  });
+
+  // Polling is FALLBACK only when socket is disconnected
+  usePolling(pollActiveWithdrawal, 3000, Boolean(wallet?.activeWithdrawal) && !connected);
 
   const handleWithdrawClick = () => {
     setModalInitialAmount(null);

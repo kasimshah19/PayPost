@@ -11,6 +11,7 @@ const { NOTIFICATION_CHANNEL, NOTIFICATION_STATUS } = require('../constants');
 const { renderTemplate } = require('./notificationTemplates');
 const { nextAllowedSendTime } = require('../utils/quietHours');
 const clock = require('./clock');
+const { emitToUser, afterCommit, EVENTS } = require('../realtime');
 
 /**
  * Enqueues a notification for a single recipient across both channels.
@@ -82,6 +83,19 @@ async function notify({ recipientId, event, refId, dedupeRefId, version, dedupeV
       { $setOnInsert: jobData },
       { upsert: true, session }
     );
+  }
+
+  const doEmit = () => {
+    emitToUser(user._id, EVENTS.NOTIFICATION_CHANGED, {
+      status: 'pending',
+      showToast: false
+    });
+  };
+
+  if (session) {
+    afterCommit(session, doEmit);
+  } else {
+    doEmit();
   }
 }
 

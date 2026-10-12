@@ -4,9 +4,13 @@ import { AuthContext } from '../context/AuthContext';
 import api from '../api/axios';
 import MoneyText from './MoneyText';
 import { usePolling } from '../hooks/usePolling';
+import ConnectionBadge from './ConnectionBadge';
+import { useSocket } from '../realtime/SocketProvider';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
+  const { connected } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [walletBalance, setWalletBalance] = useState(null);
@@ -46,8 +50,11 @@ const Navbar = () => {
     };
   }, [fetchBalanceAndHeld, location.pathname]);
 
-  // Visibility-aware polling pauses when tab hidden
-  usePolling(fetchBalanceAndHeld, { intervalMs: 10000, enabled: Boolean(user) });
+  // Real-time updates for wallet balance and held notification counter
+  useRealtimeRefetch(['wallet:changed', 'notification:changed'], fetchBalanceAndHeld);
+
+  // Polling is FALLBACK only when socket is NOT connected
+  usePolling(fetchBalanceAndHeld, { intervalMs: 10000, enabled: Boolean(user) && !connected });
 
   const handleLogout = () => {
     logout();
@@ -55,8 +62,11 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-      <Link to="/" className="text-2xl font-bold text-indigo-600">PayPost</Link>
+    <nav className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3.5 flex justify-between items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <Link to="/" className="text-xl sm:text-2xl font-bold text-indigo-600">PayPost</Link>
+        {user && <ConnectionBadge />}
+      </div>
       
       <div>
         {user ? (

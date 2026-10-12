@@ -10,9 +10,12 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { Icon } from '../components/ui/Icon';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePolling } from '../hooks/usePolling';
+import { useSocket } from '../realtime/SocketProvider';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function Notifications() {
   useDocumentTitle('Notifications');
+  const { connected } = useSocket();
 
   const [notifications, setNotifications] = useState([]);
   const [statusData, setStatusData] = useState(null);
@@ -58,11 +61,17 @@ export default function Notifications() {
     fetchNotifications();
   }, [statusFilter, channelFilter, page]);
 
-  // Visibility-aware polling every 5s
+  // Real-time updates for notifications list and held counter
+  useRealtimeRefetch('notification:changed', () => {
+    fetchStatus();
+    fetchNotifications();
+  });
+
+  // Polling is FALLBACK only when socket is disconnected
   usePolling(() => {
     fetchStatus();
     fetchNotifications();
-  }, 5000, true);
+  }, 5000, !connected);
 
   const handleDevClockAction = async (action) => {
     setActiveClockAction(action);

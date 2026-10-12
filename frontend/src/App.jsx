@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import AppShell from './components/AppShell';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { Skeleton } from './components/ui/Skeleton';
+import { SocketProvider } from './realtime/SocketProvider';
 
 // Lazy-loaded pages for mobile network performance
 const Home = lazy(() => import('./pages/Home'));
@@ -37,8 +38,9 @@ function App() {
     <AuthProvider>
       <ToastProvider>
         <Router>
-          <ErrorBoundary>
-            <AppShell>
+          <SocketProvider>
+            <ErrorBoundary>
+              <AppShell>
               <Suspense fallback={<PageFallback />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
@@ -129,7 +131,8 @@ function App() {
               </Suspense>
             </AppShell>
           </ErrorBoundary>
-        </Router>
+        </SocketProvider>
+      </Router>
       </ToastProvider>
     </AuthProvider>
   );

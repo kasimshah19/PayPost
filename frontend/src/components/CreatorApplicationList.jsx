@@ -4,6 +4,7 @@ import api from '../api/axios';
 import StatusBadge from './StatusBadge';
 import Spinner from './Spinner';
 import MoneyText from './MoneyText';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 function CreatorApplicationList() {
   const [applications, setApplications] = useState([]);
@@ -14,6 +15,8 @@ function CreatorApplicationList() {
   useEffect(() => {
     fetchApplications();
   }, []);
+
+  useRealtimeRefetch(['application:changed', 'campaign:changed'], () => fetchApplications(true));
 
   const fetchApplications = async () => {
     try {

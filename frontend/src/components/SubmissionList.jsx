@@ -17,7 +17,7 @@ import { REVISION_NOTE_TEMPLATES, REJECT_NOTE_TEMPLATES } from '../constants/not
  * - Review action modals: Approve, Request Revision (max 2), Reject (final)
  * - Instant refresh on action and 409 error alerts
  */
-function SubmissionList({ campaignId, onStatusChange }) {
+function SubmissionList({ campaignId, onStatusChange, refreshKey }) {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,7 +36,7 @@ function SubmissionList({ campaignId, onStatusChange }) {
 
   useEffect(() => {
     fetchSubmissions();
-  }, [campaignId]);
+  }, [campaignId, refreshKey]);
 
   const fetchSubmissions = async () => {
     setLoading(true);

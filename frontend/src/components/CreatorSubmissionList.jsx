@@ -5,6 +5,7 @@ import StatusBadge from './StatusBadge';
 import MoneyText from './MoneyText';
 import Spinner from './Spinner';
 import { formatDateIST, formatCountdown } from '../utils/date';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 function CreatorSubmissionList() {
   const [submissions, setSubmissions] = useState([]);
@@ -14,6 +15,8 @@ function CreatorSubmissionList() {
   useEffect(() => {
     fetchSubmissions();
   }, []);
+
+  useRealtimeRefetch(['submission:changed', 'campaign:changed'], () => fetchSubmissions(true));
 
   const fetchSubmissions = async () => {
     setLoading(true);
