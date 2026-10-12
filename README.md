@@ -25,7 +25,7 @@
   <i>Engineered for Indian Creator Ecosystems (Inspired by UGCIndia) with Strict Concurrency Safety, Zero-Creation Financial Ledger, Dynamic Tax Engine, and Mobile-First Architecture.</i>
 </p>
 
-[🌐 Live Frontend Demo (Vercel)](https://paypost.vercel.app) • [⚙️ Live API Gateway (Render)](https://paypost-backend.onrender.com/api/health) • [📖 Technical Documentation](docs/DOCUMENTATION.md) • [📊 25 Diagrams](docs/diagrams/README.md) • [📋 Test Cases Matrix](docs/TEST_CASES.md) • [🧪 Testing Guide](docs/TESTING.md)
+[🌐 Live Frontend Demo (Vercel)](https://pay-post.vercel.app) • [⚙️ Live API Gateway (Render)](https://paypost.onrender.com/api/health) • [📖 Technical Documentation](docs/DOCUMENTATION.md) • [📊 25 Diagrams](docs/diagrams/README.md) • [📋 Test Cases Matrix](docs/TEST_CASES.md) • [🧪 Testing Guide](docs/TESTING.md)
 
 </div>
 
@@ -35,10 +35,10 @@
 
 | Component | Platform | Status | Live Endpoint / Access |
 |---|---|---|---|
-| **Frontend Web Application** | **Vercel** | [![Vercel](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=vercel)](https://paypost.vercel.app) | [paypost.vercel.app](https://paypost.vercel.app) |
-| **Backend API Gateway & Workers** | **Render** | [![Render](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=render)](https://paypost-backend.onrender.com/api/health) | [paypost-backend.onrender.com](https://paypost-backend.onrender.com) |
+| **Frontend Web Application** | **Vercel** | [![Vercel](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=vercel)](https://pay-post.vercel.app) | [pay-post.vercel.app](https://pay-post.vercel.app) |
+| **Backend API Gateway & Workers** | **Render** | [![Render](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=render)](https://paypost.onrender.com/api/health) | [paypost.onrender.com](https://paypost.onrender.com) |
 | **Transactional Database** | **MongoDB Atlas** | [![Database](https://img.shields.io/badge/Cluster-M0_Replica_Set-green?logo=mongodb)](#) | *Provisioned via Cloud Replica Set (Multi-Document ACID Enabled)* |
-| **API Health Check** | Render Gateway | [![Health](https://img.shields.io/badge/Health-200_OK-success)](#) | [`GET /api/health`](https://paypost-backend.onrender.com/api/health) |
+| **API Health Check** | Render Gateway | [![Health](https://img.shields.io/badge/Health-200_OK-success)](#) | [`GET /api/health`](https://paypost.onrender.com/api/health) |
 
 > 🔒 **Security Notice**: *Database connection strings, JWT private keys, and credential secrets are strictly decoupled from version control and injected via encrypted cloud environment variable managers (Render Environment Secrets & Vercel Project Environment Variables). MongoDB Atlas connection strings are never exposed in public repositories.*
 
