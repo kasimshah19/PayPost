@@ -4,16 +4,45 @@
 
 ![PayPost Banner](https://img.shields.io/badge/PayPost-Enterprise_FinTech_Platform-6366F1?style=for-the-badge&logo=cashapp&logoColor=white)
 
+<!-- Core Engineering Stack -->
 [![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express.js-4.19-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![MongoDB Atlas](https://img.shields.io/badge/MongoDB_Atlas-ACID_ReplicaSet-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
-[![Jest](https://img.shields.io/badge/Jest-203_Tests_Passing-C21325?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
+[![Mongoose](https://img.shields.io/badge/Mongoose-8.3-880000?style=for-the-badge&logo=mongoose&logoColor=white)](https://mongoosejs.com/)
+
+<!-- Deployment & Infrastructure -->
 [![Vercel](https://img.shields.io/badge/Frontend-Live_on_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://pay-post.vercel.app)
 [![Render](https://img.shields.io/badge/Backend-Live_on_Render-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://paypost.onrender.com)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![REST API](https://img.shields.io/badge/Architecture-RESTful_API-02569B?style=for-the-badge&logo=postman&logoColor=white)](https://paypost.onrender.com/api/health)
+[![CORS](https://img.shields.io/badge/CORS-Strict_Whitelist-FF6F00?style=for-the-badge&logo=securityscorecard&logoColor=white)](https://paypost.onrender.com)
+
+<!-- Security & Auth -->
+[![JWT](https://img.shields.io/badge/Auth-Stateless_JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![Bcrypt](https://img.shields.io/badge/Security-Bcrypt_Salt_Rounds-4A154B?style=for-the-badge&logo=auth0&logoColor=white)](https://www.npmjs.com/package/bcryptjs)
+[![RBAC](https://img.shields.io/badge/Access_Control-Brand_&_Creator_RBAC-5C6BC0?style=for-the-badge&logo=keycdn&logoColor=white)](https://pay-post.vercel.app)
+[![Zod](https://img.shields.io/badge/Validation-Zod_Runtime_Schemas-3E67B1?style=for-the-badge&logo=zod&logoColor=white)](https://zod.dev/)
+
+<!-- Financial Engine & Compliance -->
+[![Double Entry](https://img.shields.io/badge/Ledger-Double_Entry_Bookkeeping-8A2BE2?style=for-the-badge&logo=quickbooks&logoColor=white)](docs/diagrams/05-money-flow-and-ledger.md)
+[![Integer Math](https://img.shields.io/badge/Financial_Math-Strict_Integer_Paise-008080?style=for-the-badge&logo=calculator&logoColor=white)](docs/DOCUMENTATION.md)
+[![UPI](https://img.shields.io/badge/Disbursement-UPI_Two--Phase_Hold-4CAF50?style=for-the-badge&logo=googlepay&logoColor=white)](docs/diagrams/06-two-phase-withdrawals.md)
+[![TDS & GST](https://img.shields.io/badge/Taxation-Indian_TDS_&_GST_Engine-FF5722?style=for-the-badge&logo=revenuecat&logoColor=white)](docs/diagrams/16-statutory-tax-and-fee-deduction-engine.md)
+[![TRAI Compliance](https://img.shields.io/badge/Compliance-TRAI_IST_Quiet_Hours-FF9900?style=for-the-badge&logo=clockify&logoColor=white)](docs/diagrams/20-pure-utc-quiet-hours-time-arithmetic.md)
+
+<!-- Quality & Testing -->
+[![Jest](https://img.shields.io/badge/Tests-203_Passing_Automated-success?style=for-the-badge&logo=jest&logoColor=white)](docs/TEST_CASES.md)
+[![In-Memory DB](https://img.shields.io/badge/Testing-MongoDB_Memory_ReplicaSet-00ED64?style=for-the-badge&logo=mongodb&logoColor=black)](docs/TESTING.md)
+[![Chaos Tested](https://img.shields.io/badge/Chaos_Engine-100_Action_PRNG_Passed-D32F2F?style=for-the-badge&logo=apachejmeter&logoColor=white)](docs/diagrams/25-seeded-concurrency-chaos-test-engine.md)
+[![Code Quality](https://img.shields.io/badge/Code_Style-ESLint_Standard-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
+[![Zero Leaks](https://img.shields.io/badge/Concurrency-Zero_Slot_Over--Allocation-1E88E5?style=for-the-badge&logo=speedtest&logoColor=white)](docs/diagrams/03-atomic-reservation-race.md)
+
+<!-- Ecosystem & Licensing -->
+[![Responsive](https://img.shields.io/badge/UI_Design-360px_Mobile--First-9C27B0?style=for-the-badge&logo=lighthouse&logoColor=white)](https://pay-post.vercel.app)
+[![Git](https://img.shields.io/badge/VCS-Git_&_GitHub-F05032?style=for-the-badge&logo=git&logoColor=white)](https://github.com/kasimshah19/PayPost)
+[![License](https://img.shields.io/badge/License-MIT_Open_Source-blue?style=for-the-badge)](LICENSE)
 
 <br/>
 
