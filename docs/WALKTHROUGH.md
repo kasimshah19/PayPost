@@ -132,9 +132,20 @@ Services (Business logic, ACID transactions with withTransaction(session))
   - `notify`: Inserts `NotificationJob` inside the same Mongoose session as the trigger event. Evaluates `isQuietHours(now)` in IST (+5:30). If quiet (9 PM - 9 AM IST), sets `scheduledFor` to 9:00:00 AM IST of the next allowed window.
   - `notificationWorker`: Claims jobs where `scheduledFor <= now` and `status: 'pending'`. Re-verifies quiet hours and channel preferences (`optOuts`). Dispatches to mock Email/WhatsApp.
 
+### Flow 10: Real-Time Synchronization (Socket.IO Signal + Refetch)
+- **Files**: `src/realtime/index.js`, `src/realtime/events.js`, `src/utils/withTransaction.js`.
+- **Core Mechanism**:
+  1. Handshake authentication verifies JWT from `socket.handshake.auth.token`, loads user, rejects unauthorized connections, and limits sockets to max 5 per user.
+  2. Sockets join only `user:<userId>` and `role:<role>`.
+  3. Inside services executing DB transactions (`withTransaction`), emits are scheduled via `afterCommit(session, () => emitToUser(...))`.
+  4. Events are queued in a `WeakMap` keyed by `session`. If transient retry occurs, the list is reset. If transaction rolls back, queue is discarded. Upon commit, `flushAfterCommit(session)` sends all events.
+  5. Payloads pass through `buildPayload(type, data)` which strictly enforces an allowlist (stripping emails, phones, UPI IDs, pitches, budgets, notes).
+  6. Frontend receives signal and refetches authoritative data via authenticated REST endpoints.
+
 ---
 
 ## 3. 5-Minute Live Demo Script
+
 
 Follow this script to demonstrate the complete lifecycle during the live call:
 
@@ -208,6 +219,22 @@ Follow this script to demonstrate the complete lifecycle during the live call:
 
 10. **Q: What is the weakest part of the codebase?**
     - *A*: The background worker architecture relies on polling every few seconds (`setInterval`). In a high-traffic production system with tens of thousands of simultaneous users, polling queries place unnecessary read load on the database. A dedicated pub/sub or event-driven queue would be required.
+
+11. **Q: Why signal + refetch and not sending full data over WebSocket?**
+    - *A*: Three reasons: (1) **Single source of truth**: REST endpoints already implement authoritative validation, RBAC, ledger snapshots, and fee calculations. Duplicating full payloads over WebSocket risks schema drift and desynchronization. (2) **Zero sensitive data leaks**: By emitting only IDs and status, confidential fields (budgets, UPI IDs, emails, notes, pitches) can never be intercepted over socket frames. (3) **Payload efficiency**: Signals are tiny bytes; client caches and REST HTTP caching handle the real payload.
+
+12. **Q: What if the database transaction rolls back after you emitted?**
+    - *A*: We **never** emit before commit. Inside a transaction, `afterCommit(session, fn)` records closures in a `WeakMap` keyed by the Mongoose session. If `session.withTransaction()` aborts or encounters an error, the queue is dropped and nothing is emitted. If MongoDB retries a transient error, the queue is cleared on retry start and only flushed once after successful commit.
+
+13. **Q: How do you stop user A from receiving user B's events?**
+    - *A*: Room assignment is strictly server-controlled during the JWT handshake in `io.use` middleware. Users only join `user:<theirUserId>` and `role:<theirRole>`. Client-to-server events requesting room joins are ignored. Emits target specific rooms (`emitToUser`, `emitToRole`), preventing cross-tenant leakage.
+
+14. **Q: What happens when the connection drops?**
+    - *A*: Missed events are deliberately **not** buffered in server memory. Socket.IO auto-reconnects with exponential backoff (1s to 10s). Upon reconnect, or when a background tab regains focus after >30s, the client triggers a universal `resync` event that triggers fresh REST refetches for all active screens.
+
+15. **Q: How would you scale this to several servers?**
+    - *A*: Attach the official `@socket.io/redis-adapter` (or Redis Streams adapter). When an instance emits to `user:<userId>`, the adapter broadcasts the message across Redis Pub/Sub so that whichever cluster instance holds the user's active socket will deliver it.
+
 
 ---
 

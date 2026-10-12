@@ -6,6 +6,7 @@ const { WITHDRAWAL_STATUS, LEDGER_TYPE, LEDGER_DIRECTION, MIN_WITHDRAWAL_PAISE, 
 const { ensureWallet } = require('./walletService');
 const withTransaction = require('../utils/withTransaction');
 const notificationService = require('./notificationService');
+const { emitToUser, afterCommit, EVENTS } = require('../realtime');
 
 /**
  * Masks a UPI ID: first 2 characters + '***' + the part after @
@@ -165,6 +166,19 @@ async function requestWithdrawal({ userId, amountPaise, upiId, clientKey }) {
         session
       });
 
+      afterCommit(session, () => {
+        emitToUser(userId, EVENTS.WALLET_CHANGED, {
+          reason: 'withdrawal_hold',
+          showToast: false
+        });
+
+        emitToUser(userId, EVENTS.WITHDRAWAL_CHANGED, {
+          withdrawalId: withdrawal._id,
+          status: 'pending',
+          showToast: false
+        });
+      });
+
       return {
         withdrawal: formatWithdrawal(withdrawal),
         wallet: updatedWallet,
@@ -256,6 +270,21 @@ async function finalizeWithdrawal(withdrawalId, result) {
         },
         session
       });
+
+      afterCommit(session, () => {
+        emitToUser(updated.user, EVENTS.WALLET_CHANGED, {
+          reason: 'withdrawal_succeeded',
+          amountPaise: updated.amountPaise,
+          showToast: true
+        });
+
+        emitToUser(updated.user, EVENTS.WITHDRAWAL_CHANGED, {
+          withdrawalId: updated._id,
+          status: 'succeeded',
+          showToast: true
+        });
+      });
+
       return updated;
     });
   } else {
@@ -319,6 +348,21 @@ async function finalizeWithdrawal(withdrawalId, result) {
         },
         session
       });
+
+      afterCommit(session, () => {
+        emitToUser(updated.user, EVENTS.WALLET_CHANGED, {
+          reason: 'withdrawal_reversed',
+          amountPaise: updated.amountPaise,
+          showToast: true
+        });
+
+        emitToUser(updated.user, EVENTS.WITHDRAWAL_CHANGED, {
+          withdrawalId: updated._id,
+          status: 'failed',
+          showToast: true
+        });
+      });
+
       return updated;
     });
   }

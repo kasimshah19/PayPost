@@ -8,6 +8,7 @@ const { paiseToRupees } = require('../utils/money');
 const { calculateBreakdown } = require('./feeCalculator');
 const { evaluateApprovability } = require('../utils/campaignApprovability');
 const notificationService = require('./notificationService');
+const { emitToUser, emitToRole, afterCommit, EVENTS } = require('../realtime');
 
 function escapeRegex(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -23,7 +24,20 @@ class CampaignService {
       paidOutPaise: 0,
       approvedCount: 0
     });
-    return await campaign.save();
+    const saved = await campaign.save();
+
+    emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+      campaignId: saved._id,
+      campaignTitle: saved.title,
+      status: saved.status,
+      reason: 'created',
+      showToast: false
+    });
+    emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+      campaignId: saved._id
+    });
+
+    return saved;
   }
 
   async getMine(brandId, { page = 1, limit = 20, status }) {
@@ -446,7 +460,50 @@ class CampaignService {
             newSubmissionDeadline: savedCampaign.submissionDeadline
           }
         });
+
+        emitToUser(app.creator, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: savedCampaign._id,
+          campaignTitle: savedCampaign.title,
+          status: savedCampaign.status,
+          reason: 'deadline_extended',
+          showToast: true
+        });
       }
+
+      emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+        campaignId: savedCampaign._id,
+        campaignTitle: savedCampaign.title,
+        status: savedCampaign.status,
+        reason: 'deadline_extended',
+        showToast: false
+      });
+    } else {
+      emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+        campaignId: savedCampaign._id,
+        campaignTitle: savedCampaign.title,
+        status: savedCampaign.status,
+        reason: 'edited',
+        showToast: false
+      });
+
+      const activeApps = await Application.find({
+        campaign: savedCampaign._id,
+        status: { $in: [APPLICATION_STATUS.APPLIED, APPLICATION_STATUS.APPROVED] }
+      }).select('creator').lean();
+
+      for (const app of activeApps) {
+        emitToUser(app.creator, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: savedCampaign._id,
+          campaignTitle: savedCampaign.title,
+          status: savedCampaign.status,
+          reason: 'edited',
+          showToast: false
+        });
+      }
+
+      emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+        campaignId: savedCampaign._id
+      });
     }
 
     return savedCampaign;
@@ -538,6 +595,38 @@ class CampaignService {
           session
         });
       }
+
+      // Realtime flush after commit
+      afterCommit(session, () => {
+        emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: campaign.status,
+          reason: 'cancelled',
+          showToast: false
+        });
+
+        emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+          campaignId: campaign._id
+        });
+
+        for (const app of apps) {
+          emitToUser(app.creator, EVENTS.APPLICATION_CHANGED, {
+            campaignId: campaign._id,
+            campaignTitle: campaign.title,
+            applicationId: app._id,
+            status: APPLICATION_STATUS.CANCELLED,
+            showToast: true
+          });
+          emitToUser(app.creator, EVENTS.CAMPAIGN_CHANGED, {
+            campaignId: campaign._id,
+            campaignTitle: campaign.title,
+            status: campaign.status,
+            reason: 'cancelled',
+            showToast: true
+          });
+        }
+      });
 
       return campaign;
     });

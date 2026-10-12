@@ -20,6 +20,7 @@ import { validateInstagramUrl } from '../utils/instagram';
 import { formatDateIST, formatRelativeTimeIST } from '../utils/date';
 import { REVISION_NOTE_TEMPLATES, REJECT_NOTE_TEMPLATES } from '../constants/noteTemplates';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function BrandDashboard() {
   useDocumentTitle('Brand Dashboard');
@@ -108,6 +109,9 @@ export default function BrandDashboard() {
       // Background refresh failure handled gracefully
     }
   };
+
+  // Real-time updates for summary, action center and campaigns
+  useRealtimeRefetch(['campaign:changed', 'application:changed', 'submission:changed'], refreshAll);
 
   // ================= ACTION HANDLERS =================
   // 1. Approve Applicant

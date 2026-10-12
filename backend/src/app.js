@@ -14,6 +14,8 @@ const notificationRoutes = require('./routes/notification.routes');
 const creatorRoutes = require('./routes/creator.routes');
 const devRoutes = require('./routes/dev.routes');
 
+const { isOriginAllowed } = require('./utils/corsHelper');
+
 const app = express();
 
 app.use(express.json());
@@ -22,9 +24,7 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
-    const allowed = env.ALLOWED_ORIGINS || (env.CLIENT_URL ? [env.CLIENT_URL] : ['http://localhost:5173']);
-    const list = Array.isArray(allowed) ? allowed : [allowed];
-    if (list.includes(origin)) {
+    if (isOriginAllowed(origin, env.ALLOWED_ORIGINS)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));

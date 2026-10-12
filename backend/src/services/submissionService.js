@@ -9,6 +9,7 @@ const { validateInstagramUrl } = require('../utils/instagram');
 const payoutService = require('./payoutService');
 const walletService = require('./walletService');
 const notificationService = require('./notificationService');
+const { emitToUser, emitToRole, afterCommit, EVENTS } = require('../realtime');
 
 class SubmissionService {
   /**
@@ -135,6 +136,26 @@ class SubmissionService {
         session
       });
 
+      afterCommit(session, () => {
+        emitToUser(application.campaign.brand, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: submission._id,
+          applicationId: application._id,
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title,
+          status: 'submitted',
+          showToast: true
+        });
+
+        emitToUser(creatorId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: submission._id,
+          applicationId: application._id,
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title,
+          status: 'submitted',
+          showToast: false
+        });
+      });
+
       return submission;
     });
   }
@@ -239,6 +260,28 @@ class SubmissionService {
         session
       });
 
+      afterCommit(session, () => {
+        const campId = campaign?._id || submission.campaign;
+        const campTitle = campaign?.title || '';
+        emitToUser(campaign?.brand || submission.brand, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: submission.application,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'resubmitted',
+          showToast: true
+        });
+
+        emitToUser(creatorId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: submission.application,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'resubmitted',
+          showToast: false
+        });
+      });
+
       return updatedSubmission;
     });
   }
@@ -314,6 +357,41 @@ class SubmissionService {
         campaign: submission.campaign,
         application,
         submission: updatedSubmission
+      });
+
+      afterCommit(session, () => {
+        const campId = submission.campaign._id || submission.campaign;
+        const campTitle = submission.campaign.title || '';
+        const cId = submission.creator?._id || submission.creator || application.creator?._id || application.creator;
+
+        emitToUser(cId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: application._id,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'approved',
+          showToast: true
+        });
+
+        emitToUser(brandId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: application._id,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'approved',
+          showToast: false
+        });
+
+        emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: campId,
+          campaignTitle: campTitle,
+          reason: 'money',
+          showToast: false
+        });
+
+        emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+          campaignId: campId
+        });
       });
 
       return updatedSubmission;
@@ -408,6 +486,26 @@ class SubmissionService {
           revisionDueAt
         },
         session
+      });
+
+      afterCommit(session, () => {
+        emitToUser(submission.creator, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: submission.application,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'revision_requested',
+          showToast: true
+        });
+
+        emitToUser(brandId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: submission.application,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'revision_requested',
+          showToast: false
+        });
       });
 
       return updatedSubmission;
@@ -516,6 +614,40 @@ class SubmissionService {
           note: note.trim()
         },
         session
+      });
+
+      afterCommit(session, () => {
+        const campId = updatedCampaign._id;
+        const campTitle = updatedCampaign.title || submission.campaign?.title || '';
+
+        emitToUser(submission.creator, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: application._id,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'rejected',
+          showToast: true
+        });
+
+        emitToUser(brandId, EVENTS.SUBMISSION_CHANGED, {
+          submissionId: updatedSubmission._id,
+          applicationId: application._id,
+          campaignId: campId,
+          campaignTitle: campTitle,
+          status: 'rejected',
+          showToast: false
+        });
+
+        emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: campId,
+          campaignTitle: campTitle,
+          reason: 'money',
+          showToast: false
+        });
+
+        emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+          campaignId: campId
+        });
       });
 
       return updatedSubmission;

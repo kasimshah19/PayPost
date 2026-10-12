@@ -7,9 +7,12 @@ import { Icon } from './ui/Icon';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { usePolling } from '../hooks/usePolling';
+import { useSocket } from '../realtime/SocketProvider';
+import { useRealtimeRefetch } from '../realtime/useRealtimeRefetch';
 
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
+  const { connected } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -39,8 +42,11 @@ export default function AppShell({ children }) {
     }
   };
 
-  // Visibility-aware polling every 10 seconds
-  usePolling(fetchStatus, 10000, Boolean(user));
+  // Real-time updates for wallet and notifications
+  useRealtimeRefetch(['wallet:changed', 'notification:changed'], fetchStatus);
+
+  // Fallback polling only when socket is disconnected
+  usePolling(fetchStatus, 10000, Boolean(user) && !connected);
 
   useEffect(() => {
     fetchStatus();

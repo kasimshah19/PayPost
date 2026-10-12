@@ -6,9 +6,9 @@ const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((message, type = 'info', duration = 4000) => {
+  const showToast = useCallback((message, type = 'info', duration = 4000, onClick = null) => {
     const id = Date.now() + Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, onClick }].slice(-3));
 
     if (duration > 0) {
       setTimeout(() => {
@@ -22,9 +22,10 @@ export function ToastProvider({ children }) {
   }, []);
 
   const toast = {
-    success: (msg) => showToast(msg, 'success'),
-    error: (msg) => showToast(msg, 'error'),
-    info: (msg) => showToast(msg, 'info')
+    success: (msg, onClick) => showToast(msg, 'success', 4000, onClick),
+    error: (msg, onClick) => showToast(msg, 'error', 4000, onClick),
+    info: (msg, onClick) => showToast(msg, 'info', 4000, onClick),
+    custom: (msg, type = 'info', duration = 4000, onClick = null) => showToast(msg, type, duration, onClick)
   };
 
   return (
@@ -39,7 +40,15 @@ export function ToastProvider({ children }) {
           <div
             key={t.id}
             role="status"
+            onClick={() => {
+              if (t.onClick) {
+                t.onClick();
+                removeToast(t.id);
+              }
+            }}
             className={`pointer-events-auto flex items-center justify-between p-3.5 rounded-xl shadow-lg border text-sm font-medium transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+              t.onClick ? 'cursor-pointer hover:shadow-xl hover:opacity-95' : ''
+            } ${
               t.type === 'success'
                 ? 'bg-green-50 text-green-900 border-green-200'
                 : t.type === 'error'
@@ -47,16 +56,19 @@ export function ToastProvider({ children }) {
                 : 'bg-indigo-50 text-indigo-900 border-indigo-200'
             }`}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <Icon
                 name={t.type === 'success' ? 'check' : t.type === 'error' ? 'alert-circle' : 'info'}
                 className="w-5 h-5 flex-shrink-0"
               />
-              <span className="break-words">{t.message}</span>
+              <span className={`break-words ${t.onClick ? 'underline decoration-dotted underline-offset-2' : ''}`}>{t.message}</span>
             </div>
             <button
               type="button"
-              onClick={() => removeToast(t.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeToast(t.id);
+              }}
               className="ml-3 min-h-11 min-w-11 -mr-2 flex items-center justify-center rounded-lg opacity-60 hover:opacity-100"
               aria-label="Dismiss toast"
             >

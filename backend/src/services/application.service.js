@@ -8,6 +8,7 @@ const withTransaction = require('../utils/withTransaction');
 const { paiseToRupees } = require('../utils/money');
 const { evaluateApprovability } = require('../utils/campaignApprovability');
 const notificationService = require('./notificationService');
+const { emitToUser, emitToRole, afterCommit, EVENTS } = require('../realtime');
 
 class ApplicationService {
   /**
@@ -97,6 +98,25 @@ class ApplicationService {
               session
             });
 
+            afterCommit(session, () => {
+              // Brand gets notification toast
+              emitToUser(campaign.brand, EVENTS.APPLICATION_CHANGED, {
+                applicationId: saved._id,
+                campaignId: campaign._id,
+                campaignTitle: campaign.title,
+                status: 'applied',
+                showToast: true
+              });
+              // Creator gets silent update for their other tabs
+              emitToUser(creatorId, EVENTS.APPLICATION_CHANGED, {
+                applicationId: saved._id,
+                campaignId: campaign._id,
+                campaignTitle: campaign.title,
+                status: 'applied',
+                showToast: false
+              });
+            });
+
             return saved;
           } else {
             const err = new Error('You cannot re-apply after withdrawing from an approved slot'); err.status = 409; throw err;
@@ -136,6 +156,25 @@ class ApplicationService {
           creatorName: creator?.name
         },
         session
+      });
+
+      afterCommit(session, () => {
+        // Brand gets toast
+        emitToUser(campaign.brand, EVENTS.APPLICATION_CHANGED, {
+          applicationId: savedApp._id,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'applied',
+          showToast: true
+        });
+        // Creator gets silent copy
+        emitToUser(creatorId, EVENTS.APPLICATION_CHANGED, {
+          applicationId: savedApp._id,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'applied',
+          showToast: false
+        });
       });
 
       return savedApp;
@@ -208,6 +247,41 @@ class ApplicationService {
           session
         });
       }
+
+      afterCommit(session, () => {
+        if (campaign) {
+          // Brand gets toast
+          emitToUser(campaign.brand, EVENTS.APPLICATION_CHANGED, {
+            applicationId: application._id,
+            campaignId: campaign._id,
+            campaignTitle: campaign.title,
+            status: 'withdrawn',
+            showToast: true
+          });
+
+          if (oldStatus === APPLICATION_STATUS.APPROVED) {
+            // Brand gets money update (silent)
+            emitToUser(campaign.brand, EVENTS.CAMPAIGN_CHANGED, {
+              campaignId: campaign._id,
+              campaignTitle: campaign.title,
+              reason: 'money',
+              showToast: false
+            });
+            // Creators get discover slots update (silent)
+            emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+              campaignId: campaign._id
+            });
+          }
+        }
+
+        // Creator gets silent copy
+        emitToUser(creatorId, EVENTS.APPLICATION_CHANGED, {
+          applicationId: application._id,
+          campaignId: campaign ? campaign._id : application.campaign,
+          status: 'withdrawn',
+          showToast: false
+        });
+      });
 
       return application;
     });
@@ -296,6 +370,39 @@ class ApplicationService {
         session
       });
 
+      afterCommit(session, () => {
+        // Creator gets toast that they were approved
+        emitToUser(application.creator, EVENTS.APPLICATION_CHANGED, {
+          applicationId: application._id,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'approved',
+          showToast: true
+        });
+
+        // Brand gets silent copy for application change
+        emitToUser(brandId, EVENTS.APPLICATION_CHANGED, {
+          applicationId: application._id,
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          status: 'approved',
+          showToast: false
+        });
+
+        // Brand gets campaign money counters update (silent)
+        emitToUser(brandId, EVENTS.CAMPAIGN_CHANGED, {
+          campaignId: campaign._id,
+          campaignTitle: campaign.title,
+          reason: 'money',
+          showToast: false
+        });
+
+        // Creators get discover slots update (silent)
+        emitToRole('creator', EVENTS.DISCOVER_CHANGED, {
+          campaignId: campaign._id
+        });
+      });
+
       return { application, campaign: updatedCampaign };
     });
   }
@@ -329,6 +436,26 @@ class ApplicationService {
           campaignTitle: application.campaign.title
         },
         session
+      });
+
+      afterCommit(session, () => {
+        // Creator gets toast that application was rejected
+        emitToUser(application.creator, EVENTS.APPLICATION_CHANGED, {
+          applicationId: application._id,
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title,
+          status: 'rejected',
+          showToast: true
+        });
+
+        // Brand gets silent copy
+        emitToUser(brandId, EVENTS.APPLICATION_CHANGED, {
+          applicationId: application._id,
+          campaignId: application.campaign._id,
+          campaignTitle: application.campaign.title,
+          status: 'rejected',
+          showToast: false
+        });
       });
 
       return application;

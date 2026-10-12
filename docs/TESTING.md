@@ -17,6 +17,8 @@ PayPost enforces strict financial conservation, race-free state transitions, and
 | **I7** | Wallet balance equals sum of its ledger; ledger entries are strictly immutable. | Cached balances getting out of sync with ledger records leads to phantom money or unbacked withdrawals. | `tests/wallet.test.js`:<br>• *"wallet balance equals the sum of ledger entries"*<br>• *"ledger entries cannot be updated"*<br>• *"ledger entries cannot be deleted"*<br>`tests/e2e.lifecycle.test.js`:<br>• *"complete business story with real services, invariant verification, and money conservation"* |
 | **I8** | Failed withdrawal returns money exactly once; `heldPaise` equals active withdrawals; only one active withdrawal per creator. | Payout provider outages could destroy creator balances if reversal fails, or double-refund if retried twice. | `tests/withdrawal.test.js`:<br>• *"only one active withdrawal allowed per creator"*<br>• *"worker processes pending withdrawal with mock success"*<br>• *"worker handles mock failure, marks FAILED, refunds held balance"*<br>• *"finalizing an already finalized withdrawal is a no-op (idempotency)"* |
 | **I9** | No notification sent between 9 PM and 9 AM IST; opt-out is honored (even after queuing); outbox ensures zero lost notifications. | Nighttime spam violates TRAI regulations and frustrates users; outbox guarantees that committed DB transactions always queue messages without ghost notifications on rollback. | `tests/quietHours.test.js`:<br>• *"correctly identifies quiet hours (>= 21:00 or < 09:00 IST)"*<br>• *"schedules quiet hour jobs to next 09:00:00 IST"*<br>`tests/notification.test.js`:<br>• *"drops notification if user opted out of email channel"*<br>• *"drops notification if user opted out between queue time and send time"*<br>• *"notifies recipient using transactional session and idempotent dedupe"* |
+| **I10** | No real-time event emitted before database commit; zero cross-user/role leakage; payloads contain only allowlisted keys without sensitive fields. | Emitting before commit leaks false updates on transaction abort; leaking foreign events or balances exposes financial/private data. | `tests/realtime.test.js`:<br>• *"transaction rollback emits nothing"*<br>• *"successful transaction flushes events exactly once"*<br>• *"retried withTransaction clears intermediate attempts and flushes once"*<br>• *"a brand cannot receive another brand's events"*<br>• *"creator B cannot receive creator A's private wallet/application events"*<br>• *"discover:changed reaches creators but not brands"*<br>• *"payloads contain only allowlisted keys and never sensitive fields"* |
+
 
 ---
 
@@ -59,10 +61,21 @@ npm run test:risky:state
 npm run test:risky:out
 ```
 
+### R4: "Real-Time Synchronization" (Socket.IO Invariants & Privacy)
+*Focus*: Socket handshake authentication, connection limits (max 5), room isolation (`user:<id>`, `role:<role>`), strict payload filtering via `buildPayload`, post-commit queue flush via `WeakMap`, rollback discard, retry clearance, and business flow emits.
+*Files*:
+- `tests/realtime.test.js`
+
+*Run*:
+```bash
+npx jest tests/realtime.test.js --runInBand
+```
+
 ### Running All Risky Tests Together
 ```bash
 npm run test:risky
 ```
+
 
 ---
 

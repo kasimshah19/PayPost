@@ -18,6 +18,7 @@ const clock = require('../services/clock');
 const mockEmailProvider = require('../services/mockEmailProvider');
 const mockWhatsappProvider = require('../services/mockWhatsappProvider');
 const env = require('../config/env');
+const { emitToUser, EVENTS } = require('../realtime');
 
 let isProcessing = false;
 
@@ -71,6 +72,10 @@ async function processNotificationsOnce() {
           $unset: { processingStartedAt: 1 }
         });
         stats.rescheduled++;
+        emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+          status: 'rescheduled',
+          showToast: false
+        });
         continue;
       }
 
@@ -84,6 +89,10 @@ async function processNotificationsOnce() {
           $unset: { processingStartedAt: 1 }
         });
         stats.skipped++;
+        emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+          status: 'skipped',
+          showToast: false
+        });
         continue;
       }
 
@@ -95,6 +104,10 @@ async function processNotificationsOnce() {
           $unset: { processingStartedAt: 1 }
         });
         stats.skipped++;
+        emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+          status: 'skipped',
+          showToast: false
+        });
         continue;
       }
 
@@ -105,6 +118,10 @@ async function processNotificationsOnce() {
           $unset: { processingStartedAt: 1 }
         });
         stats.skipped++;
+        emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+          status: 'skipped',
+          showToast: false
+        });
         continue;
       }
 
@@ -139,7 +156,13 @@ async function processNotificationsOnce() {
           },
           { new: true }
         );
-        if (updated) stats.sent++;
+        if (updated) {
+          stats.sent++;
+          emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+            status: 'sent',
+            showToast: false
+          });
+        }
       } else {
         // Provider failure
         const currentAttempts = claimed.attempts; // already incremented by 1 during claim
@@ -162,7 +185,13 @@ async function processNotificationsOnce() {
             },
             { new: true }
           );
-          if (updated) stats.rescheduled++;
+          if (updated) {
+            stats.rescheduled++;
+            emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+              status: 'rescheduled',
+              showToast: false
+            });
+          }
         } else {
           // Exhausted max attempts
           const updated = await NotificationJob.findOneAndUpdate(
@@ -174,7 +203,13 @@ async function processNotificationsOnce() {
             },
             { new: true }
           );
-          if (updated) stats.failed++;
+          if (updated) {
+            stats.failed++;
+            emitToUser(claimed.user, EVENTS.NOTIFICATION_CHANGED, {
+              status: 'failed',
+              showToast: false
+            });
+          }
         }
       }
     } catch (err) {

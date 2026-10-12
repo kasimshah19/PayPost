@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { LEDGER_TYPE, LEDGER_DIRECTION, NOTIFICATION_EVENTS } = require('../constants');
 const { calculateBreakdown } = require('./feeCalculator');
 const notificationService = require('./notificationService');
+const { emitToUser, afterCommit, EVENTS } = require('../realtime');
 
 /**
  * Settles an approved submission inside an active MongoDB session / transaction:
@@ -116,6 +117,14 @@ async function settleApprovedSubmission(session, { campaign, application, submis
       idempotencyKey: `payout:${submission._id}`
     }
   ], { session });
+
+  afterCommit(session, () => {
+    emitToUser(creatorId, EVENTS.WALLET_CHANGED, {
+      reason: 'payout_credited',
+      amountPaise: breakdown.netPayoutPaise,
+      showToast: true
+    });
+  });
 
   return updatedCampaign;
 }
