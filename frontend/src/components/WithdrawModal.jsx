@@ -77,14 +77,14 @@ export default function WithdrawModal({
     try {
       const payload = {
         amountPaise,
-        payoutDestination: {
-          type: 'upi',
-          upiId: upiId.trim()
-        },
-        idempotencyKey
+        upiId: upiId.trim()
       };
 
-      const res = await api.post('/withdrawals', payload);
+      const res = await api.post('/withdrawals', payload, {
+        headers: {
+          'Idempotency-Key': idempotencyKey
+        }
+      });
       if (onSuccess) onSuccess(res.data);
       onClose();
     } catch (err) {

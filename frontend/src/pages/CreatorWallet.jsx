@@ -190,22 +190,33 @@ export default function CreatorWallet() {
 
   const handleRetryWithdrawal = (w) => {
     setModalInitialAmount(w.amountPaise);
-    setModalInitialUpi(w.payoutDestination?.upiId || '');
+    const unmasked = wallet?.lastUpiId || '';
+    setModalInitialUpi(unmasked);
     setIsModalOpen(true);
   };
 
-  const handleModalSuccess = (newWithdrawal) => {
+  const handleModalSuccess = (data) => {
     setIsModalOpen(false);
     setStatusBanner(null);
-    setWallet(prev => ({
-      ...prev,
-      balancePaise: prev.balancePaise - newWithdrawal.amountPaise,
-      heldPaise: prev.heldPaise + newWithdrawal.amountPaise,
-      activeWithdrawal: newWithdrawal
-    }));
+    const newWithdrawal = data?.withdrawal || data;
+    const newWallet = data?.wallet;
+    if (newWallet) {
+      setWallet(prev => ({
+        ...prev,
+        balancePaise: newWallet.balancePaise,
+        heldPaise: newWallet.heldPaise,
+        activeWithdrawal: newWithdrawal
+      }));
+    } else if (newWithdrawal) {
+      setWallet(prev => ({
+        ...prev,
+        balancePaise: (prev?.balancePaise || 0) - (newWithdrawal.amountPaise || 0),
+        heldPaise: (prev?.heldPaise || 0) + (newWithdrawal.amountPaise || 0),
+        activeWithdrawal: newWithdrawal
+      }));
+    }
     prevActiveRef.current = newWithdrawal;
-    fetchWithdrawals();
-    fetchLedgerEntries();
+    fetchInitialData();
     window.dispatchEvent(new Event('wallet_updated'));
   };
 

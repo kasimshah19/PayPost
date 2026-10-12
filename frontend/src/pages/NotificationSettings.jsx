@@ -19,6 +19,7 @@ export default function NotificationSettings() {
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [statusInfo, setStatusInfo] = useState(null);
 
   // Indian mobile validation pattern: 10 digits or +91 followed by 10 digits
   const phonePattern = /^(\+91)?[6-9]\d{9}$/;
@@ -29,6 +30,9 @@ export default function NotificationSettings() {
       setWhatsappPref(user.notificationPrefs?.whatsapp !== false);
       setPhone(user.phone || '');
     }
+    api.get('/notifications/status')
+      .then(res => setStatusInfo(res.data))
+      .catch(() => {});
   }, [user]);
 
   const handlePhoneChange = (e) => {
@@ -153,14 +157,27 @@ export default function NotificationSettings() {
             )}
           </div>
 
-          {/* Quiet Hours Explainer */}
-          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-900 space-y-1">
-            <p className="font-bold flex items-center gap-1.5">
+          {/* Quiet Hours Explainer & Live Status */}
+          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-900 space-y-2">
+            <p className="font-bold flex items-center gap-1.5 text-sm">
               <Icon name="clock" className="w-4 h-4 text-indigo-600" />
-              Quiet Hours Policy (10:00 PM - 9:00 AM IST)
+              Quiet Hours Policy (9:00 PM - 9:00 AM IST)
             </p>
             <p className="text-indigo-800">
-              To protect your sleep, non-critical notifications triggered during nighttime will be securely queued and delivered at 9:00 AM IST the next morning.
+              Messages are not sent between 9:00 PM and 9:00 AM IST. They are held and sent at 9:00 AM IST.
+            </p>
+            {statusInfo && (
+              <div className="pt-2 border-t border-indigo-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] font-medium">
+                <span>Current IST: <strong className="font-mono text-indigo-950">{statusInfo.nowIst || 'N/A'}</strong></span>
+                <span className={statusInfo.quietHoursActive ? 'text-amber-800 font-bold' : 'text-emerald-800 font-bold'}>
+                  {statusInfo.quietHoursActive
+                    ? 'Quiet hours are active now. Next messages go out at 9:00 AM IST.'
+                    : 'Messages are being sent normally.'}
+                </span>
+              </div>
+            )}
+            <p className="text-[11px] text-gray-500 italic pt-1">
+              Note: If you turn a channel off, you will not get any message on it, including payment updates.
             </p>
           </div>
 
