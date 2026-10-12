@@ -5,6 +5,7 @@ import MoneyText from './MoneyText';
 import Spinner from './Spinner';
 import ConfirmModal from './ConfirmModal';
 import FeeBreakdown from './FeeBreakdown';
+import { Modal } from './ui/Modal';
 import { validateInstagramUrl } from '../utils/instagram';
 import { formatDateIST, formatCountdown } from '../utils/date';
 import { REVISION_NOTE_TEMPLATES, REJECT_NOTE_TEMPLATES } from '../constants/noteTemplates';

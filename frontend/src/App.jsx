@@ -34,10 +34,10 @@ function PageFallback() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <ToastProvider>
-          <Router>
+    <AuthProvider>
+      <ToastProvider>
+        <Router>
+          <ErrorBoundary>
             <AppShell>
               <Suspense fallback={<PageFallback />}>
                 <Routes>
@@ -128,10 +128,10 @@ function App() {
                 </Routes>
               </Suspense>
             </AppShell>
-          </Router>
-        </ToastProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+          </ErrorBoundary>
+        </Router>
+      </ToastProvider>
+    </AuthProvider>
   );
 }
 

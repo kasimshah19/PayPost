@@ -7,7 +7,7 @@ export function PageHeader({ title, subtitle, actions, className = '' }) {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
           {title}
         </h1>
-        {subtitle && <p className="mt-1 text-sm sm:text-base text-gray-500">{subtitle}</p>}
+        {subtitle && <div className="mt-1 text-sm sm:text-base text-gray-500">{subtitle}</div>}
       </div>
       {actions && (
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
