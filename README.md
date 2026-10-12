@@ -1,44 +1,57 @@
-# PayPost: Campaign Deliverables & Financial Settlement Engine
+# ⚡ PayPost — Creator Deliverables & Real-Time Financial Settlement Engine
 
 <div align="center">
 
-![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Express.js](https://img.shields.io/badge/Express.js-4.19-000000?style=for-the-badge&logo=express&logoColor=white)
-![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB_Atlas-ACID_ReplicaSet-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
-![Mongoose](https://img.shields.io/badge/Mongoose-8.3-880000?style=for-the-badge&logo=mongoose&logoColor=white)
-![Jest](https://img.shields.io/badge/Jest-29.7-C21325?style=for-the-badge&logo=jest&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-Stateless_Auth-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
-![Bcrypt](https://img.shields.io/badge/Bcrypt.js-Salted_Hash-4A154B?style=for-the-badge&logo=auth0&logoColor=white)
-![Render](https://img.shields.io/badge/Backend-Render_Deploy-46E3B7?style=for-the-badge&logo=render&logoColor=black)
-![Vercel](https://img.shields.io/badge/Frontend-Vercel_Deploy-000000?style=for-the-badge&logo=vercel&logoColor=white)
-![Double Entry](https://img.shields.io/badge/Ledger-Double_Entry_Bookkeeping-blueviolet?style=for-the-badge&logo=ledger&logoColor=white)
-![UPI](https://img.shields.io/badge/Disbursement-UPI_2--Phase_Hold-4CAF50?style=for-the-badge&logo=googlepay&logoColor=white)
-![TRAI](https://img.shields.io/badge/Compliance-TRAI_IST_Quiet_Hours-FF9900?style=for-the-badge&logo=timeanddate&logoColor=white)
-![Chaos Tested](https://img.shields.io/badge/Tests-203_Passing_Automated-success?style=for-the-badge&logo=checkmarx&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
+![PayPost Banner](https://img.shields.io/badge/PayPost-Enterprise_FinTech_Platform-6366F1?style=for-the-badge&logo=cashapp&logoColor=white)
 
-<p align="center">
-  <b>A Production-Grade Creator-Brand Campaign Deliverables & Real-Time Financial Settlement Platform</b><br/>
-  <i>Engineered for Indian Creator Ecosystems (Inspired by UGCIndia) with Strict Concurrency Safety, Zero-Creation Financial Ledger, Dynamic Tax Engine, and Mobile-First Architecture.</i>
-</p>
+[![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-4.19-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![MongoDB Atlas](https://img.shields.io/badge/MongoDB_Atlas-ACID_ReplicaSet-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
+[![Jest](https://img.shields.io/badge/Jest-203_Tests_Passing-C21325?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
+[![Vercel](https://img.shields.io/badge/Frontend-Live_on_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://pay-post.vercel.app)
+[![Render](https://img.shields.io/badge/Backend-Live_on_Render-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://paypost.onrender.com)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-[🌐 Live Frontend Demo (Vercel)](https://pay-post.vercel.app) • [⚙️ Live API Gateway (Render)](https://paypost.onrender.com/api/health) • [📖 Technical Documentation](docs/DOCUMENTATION.md) • [📊 25 Diagrams](docs/diagrams/README.md) • [📋 Test Cases Matrix](docs/TEST_CASES.md) • [🧪 Testing Guide](docs/TESTING.md)
+<br/>
 
-</div>
+### 🌟 **The Next-Gen Influencer Marketing & Escrow Payout Infrastructure**
+*Engineered for India's booming UGC and Creator Economy with Double-Entry Ledger Bookkeeping, Two-Phase UPI Disbursements, TRAI-Compliant Quiet Hours, and Mathematical Race-Condition Defenses.*
+
+<br/>
+
+**[🚀 Launch Live Web App](https://pay-post.vercel.app)** &nbsp;•&nbsp; **[⚙️ Live API Gateway Health](https://paypost.onrender.com/api/health)** &nbsp;•&nbsp; **[📖 Technical Blueprint](docs/DOCUMENTATION.md)** &nbsp;•&nbsp; **[📊 25 Architecture Diagrams](docs/diagrams/README.md)** &nbsp;•&nbsp; **[🧪 Test Matrix](docs/TEST_CASES.md)**
 
 ---
 
-## 🚀 Live Deployments & Cloud Architecture
+</div>
 
-| Component | Platform | Status | Live Endpoint / Access |
+## 🌐 Live Cloud Infrastructure
+
+| Tier | Provider | Status | Public URL | Architecture Highlights |
+|---|---|---|---|---|
+| **Frontend Client** | **Vercel** | [![Vercel](https://img.shields.io/badge/Vercel-Production_Live-brightgreen?logo=vercel)](https://pay-post.vercel.app) | **[pay-post.vercel.app](https://pay-post.vercel.app)** | Vite 5 SPA, Tailwind CSS, Mobile-first responsive touch UI |
+| **Backend API Gateway** | **Render** | [![Render](https://img.shields.io/badge/Render-Healthy-brightgreen?logo=render)](https://paypost.onrender.com/api/health) | **[paypost.onrender.com](https://paypost.onrender.com)** | Node.js Express, Multi-worker polling engine, JWT Guards |
+| **Database Cluster** | **MongoDB Atlas** | [![Database](https://img.shields.io/badge/MongoDB-Cluster_Active-green?logo=mongodb)](#) | *Encrypted Cloud Replica Set* | Multi-document ACID Transactions, Read-isolated sessions |
+| **Health Check** | **REST Endpoint** | [![Health](https://img.shields.io/badge/API-200_OK-success)](#) | **[`/api/health`](https://paypost.onrender.com/api/health)** | Real-time gateway status, latency, and uptime timestamp |
+
+> 🔐 **Production Security Standard**: *All banking mock gateways, Mongo cluster credentials, and JWT secret salts are injected through zero-trust environment vaults. Zero hardcoded secrets exist in the repository.*
+
+---
+
+## ⚡ Interactive Live Demo Walkthrough
+
+Ready to test in 30 seconds? Use these pre-loaded sandbox credentials:
+
+| Experience Role | Login Email | Password | What You Can Test |
 |---|---|---|---|
-| **Frontend Web Application** | **Vercel** | [![Vercel](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=vercel)](https://pay-post.vercel.app) | [pay-post.vercel.app](https://pay-post.vercel.app) |
-| **Backend API Gateway & Workers** | **Render** | [![Render](https://img.shields.io/badge/Deployment-Live-brightgreen?logo=render)](https://paypost.onrender.com/api/health) | [paypost.onrender.com](https://paypost.onrender.com) |
-| **Transactional Database** | **MongoDB Atlas** | [![Database](https://img.shields.io/badge/Cluster-M0_Replica_Set-green?logo=mongodb)](#) | *Provisioned via Cloud Replica Set (Multi-Document ACID Enabled)* |
-| **API Health Check** | Render Gateway | [![Health](https://img.shields.io/badge/Health-200_OK-success)](#) | [`GET /api/health`](https://paypost.onrender.com/api/health) |
+| 🏢 **Brand Manager** | `brand@demo.com` | `Password123!` | Create campaigns, review Instagram Reel submissions, approve payouts, and manage revisions. |
+| 🎨 **Creator (Ammar)** | `creator1@demo.com` | `Password123!` | View earnings ledger, request **instant UPI withdrawals** to bank, and test notification quiet hours. |
+| 🆕 **Applicant Creator** | `creator2@demo.com` | `Password123!` | Browse open marketplace briefs and test concurrent slot reservations with zero slot stealing. |
+
+---
 
 > 🔒 **Security Notice**: *Database connection strings, JWT private keys, and credential secrets are strictly decoupled from version control and injected via encrypted cloud environment variable managers (Render Environment Secrets & Vercel Project Environment Variables). MongoDB Atlas connection strings are never exposed in public repositories.*
 
