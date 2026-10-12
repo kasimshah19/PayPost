@@ -726,8 +726,8 @@ export default function BrandDashboard() {
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setRevisionSubNote(prev => prev ? `${prev} ${tpl}` : tpl)}
-                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200 text-left transition-colors"
+                  onClick={() => setRevisionSubNote(prev => prev && prev.includes(tpl) ? prev : (prev ? `${prev} ${tpl}` : tpl))}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200 text-left transition-colors flex items-center"
                 >
                   + {tpl}
                 </button>
@@ -797,8 +797,8 @@ export default function BrandDashboard() {
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setRejectSubNote(prev => prev ? `${prev} ${tpl}` : tpl)}
-                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 border border-gray-200 text-left transition-colors"
+                  onClick={() => setRejectSubNote(prev => prev && prev.includes(tpl) ? prev : (prev ? `${prev} ${tpl}` : tpl))}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 border border-gray-200 text-left transition-colors flex items-center"
                 >
                   + {tpl}
                 </button>

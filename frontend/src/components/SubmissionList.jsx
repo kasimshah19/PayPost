@@ -7,6 +7,7 @@ import ConfirmModal from './ConfirmModal';
 import FeeBreakdown from './FeeBreakdown';
 import { validateInstagramUrl } from '../utils/instagram';
 import { formatDateIST, formatCountdown } from '../utils/date';
+import { REVISION_NOTE_TEMPLATES, REJECT_NOTE_TEMPLATES } from '../constants/noteTemplates';
 
 /**
  * SubmissionList component for Brand CampaignDetail:
@@ -223,7 +224,7 @@ function SubmissionList({ campaignId, onStatusChange }) {
             const hasRevisionsLeft = sub.revisionsLeft > 0;
 
             return (
-              <div key={sub._id} className="border rounded-lg bg-white p-5 shadow-sm space-y-4">
+              <div key={sub._id} id={`item-${sub._id}`} className="border rounded-lg bg-white p-5 shadow-sm space-y-4">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b">
                   <div>
@@ -450,12 +451,12 @@ function SubmissionList({ campaignId, onStatusChange }) {
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-gray-500">Quick suggestions (tap to append):</p>
             <div className="flex flex-wrap gap-1.5">
-              {['Please show the product in the first 3 seconds.', 'Please tag our brand account in the post.', 'The audio is unclear, please re-record.', 'Please follow the caption guidelines in the brief.'].map((tpl, i) => (
+              {REVISION_NOTE_TEMPLATES.map((tpl, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setActionNote(prev => prev ? `${prev} ${tpl}` : tpl)}
-                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200 text-left transition-colors"
+                  onClick={() => setActionNote(prev => prev && prev.includes(tpl) ? prev : (prev ? `${prev} ${tpl}` : tpl))}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-full bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200 text-left transition-colors flex items-center"
                 >
                   + {tpl}
                 </button>
@@ -525,12 +526,12 @@ function SubmissionList({ campaignId, onStatusChange }) {
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-gray-500">Quick suggestions (tap to append):</p>
             <div className="flex flex-wrap gap-1.5">
-              {['The post does not match the campaign brief.', 'The post is not publicly visible.', 'The product is not clearly shown.'].map((tpl, i) => (
+              {REJECT_NOTE_TEMPLATES.map((tpl, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setActionNote(prev => prev ? `${prev} ${tpl}` : tpl)}
-                  className="px-2.5 py-1 text-xs rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 border border-gray-200 text-left transition-colors"
+                  onClick={() => setActionNote(prev => prev && prev.includes(tpl) ? prev : (prev ? `${prev} ${tpl}` : tpl))}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 border border-gray-200 text-left transition-colors flex items-center"
                 >
                   + {tpl}
                 </button>

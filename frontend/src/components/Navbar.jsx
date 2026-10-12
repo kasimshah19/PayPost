@@ -1,8 +1,9 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../api/axios';
 import MoneyText from './MoneyText';
+import { usePolling } from '../hooks/usePolling';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
@@ -11,34 +12,42 @@ const Navbar = () => {
   const [walletBalance, setWalletBalance] = useState(null);
   const [heldCount, setHeldCount] = useState(0);
 
-  useEffect(() => {
-    const fetchBalanceAndHeld = () => {
-      if (user) {
-        if (user.role === 'creator') {
-          api.get('/wallet')
-            .then(res => setWalletBalance(res.data.balancePaise))
-            .catch(() => {});
-        } else {
-          setWalletBalance(null);
+  const fetchBalanceAndHeld = useCallback(async () => {
+    if (user) {
+      if (user.role === 'creator') {
+        try {
+          const res = await api.get('/wallet');
+          setWalletBalance(res.data.balancePaise);
+        } catch {
+          // ignore error
         }
-
-        api.get('/notifications/status')
-          .then(res => setHeldCount(res.data.heldCount || 0))
-          .catch(() => {});
       } else {
         setWalletBalance(null);
-        setHeldCount(0);
       }
-    };
 
+      try {
+        const res = await api.get('/notifications/status');
+        setHeldCount(res.data.heldCount || 0);
+      } catch {
+        // ignore error
+      }
+    } else {
+      setWalletBalance(null);
+      setHeldCount(0);
+    }
+  }, [user]);
+
+  // Initial and on route change fetch
+  useEffect(() => {
     fetchBalanceAndHeld();
     window.addEventListener('wallet_updated', fetchBalanceAndHeld);
-    const interval = setInterval(fetchBalanceAndHeld, 10000);
     return () => {
       window.removeEventListener('wallet_updated', fetchBalanceAndHeld);
-      clearInterval(interval);
     };
-  }, [user, location.pathname]);
+  }, [fetchBalanceAndHeld, location.pathname]);
+
+  // Visibility-aware polling pauses when tab hidden
+  usePolling(fetchBalanceAndHeld, { intervalMs: 10000, enabled: Boolean(user) });
 
   const handleLogout = () => {
     logout();

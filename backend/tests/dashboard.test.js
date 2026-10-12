@@ -242,6 +242,39 @@ describe('Phase 9 Backend APIs', () => {
       expect(expiredApp.canApprove).toBe(false);
       expect(expiredApp.cannotApproveReason).toBe('Submission deadline has passed');
     });
+
+    it('cuts lists to 20 while counts show real totals', async () => {
+      const camp = await Campaign.create({
+        brand: brand._id,
+        title: 'Many Applicants Campaign',
+        budgetPaise: 500000,
+        perCreatorFeePaise: 10000,
+        slots: 30,
+        approvedCount: 0,
+        status: CAMPAIGN_STATUS.ACTIVE,
+        applicationDeadline: new Date(Date.now() + 86400000),
+        submissionDeadline: new Date(Date.now() + 86400000 * 2)
+      });
+
+      const appsToInsert = [];
+      for (let i = 0; i < 25; i++) {
+        appsToInsert.push({
+          campaign: camp._id,
+          creator: new mongoose.Types.ObjectId(),
+          status: APPLICATION_STATUS.APPLIED,
+          pitch: `Pitch ${i}`
+        });
+      }
+      await Application.insertMany(appsToInsert);
+
+      const res = await request(app)
+        .get('/api/campaigns/mine/attention')
+        .set('Authorization', `Bearer ${brandToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.counts.pendingApplicants).toBe(25);
+      expect(res.body.applicants.length).toBe(20);
+    });
   });
 
   describe('GET /api/creator/next-actions', () => {
@@ -432,6 +465,35 @@ describe('Phase 9 Backend APIs', () => {
         .get('/api/campaigns?sort=invalid_sort')
         .set('Authorization', `Bearer ${creatorToken}`);
       expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for negative or float minFeePaise', async () => {
+      const resNegative = await request(app)
+        .get('/api/campaigns?minFeePaise=-500')
+        .set('Authorization', `Bearer ${creatorToken}`);
+      expect(resNegative.status).toBe(400);
+
+      const resFloat = await request(app)
+        .get('/api/campaigns?minFeePaise=12.5')
+        .set('Authorization', `Bearer ${creatorToken}`);
+      expect(resFloat.status).toBe(400);
+    });
+
+    it('handles other regex special chars like [, \\, and .* safely without crashing', async () => {
+      const resBracket = await request(app)
+        .get('/api/campaigns?q=[test')
+        .set('Authorization', `Bearer ${creatorToken}`);
+      expect(resBracket.status).toBe(200);
+
+      const resSlash = await request(app)
+        .get('/api/campaigns?q=\\test')
+        .set('Authorization', `Bearer ${creatorToken}`);
+      expect(resSlash.status).toBe(200);
+
+      const resWildcard = await request(app)
+        .get('/api/campaigns?q=.*')
+        .set('Authorization', `Bearer ${creatorToken}`);
+      expect(resWildcard.status).toBe(200);
     });
 
     it('never exposes sensitive budget fields in browse output', async () => {

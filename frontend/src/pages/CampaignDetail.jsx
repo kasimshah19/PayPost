@@ -53,21 +53,37 @@ export default function CampaignDetail() {
     }
   };
 
-  // Deep link auto-scroll and highlight (?tab=submissions&focus=<id>)
+  // Deep link auto-scroll and highlight (?tab=submissions&focus=<id> and ?tab=applicants&focus=<id>)
   useEffect(() => {
-    if (focusId && !loading) {
-      const timer = setTimeout(() => {
-        const el = document.getElementById(`submission-${focusId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50/50');
-          setTimeout(() => {
-            el.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50/50');
-          }, 2000);
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
+    if (!focusId || loading) return;
+
+    let attempts = 0;
+    const maxAttempts = 25; // Poll up to 2.5s for async-loaded list cards
+    const interval = setInterval(() => {
+      attempts += 1;
+      const el =
+        document.getElementById(`item-${focusId}`) ||
+        document.getElementById(`submission-${focusId}`) ||
+        document.getElementById(`application-${focusId}`);
+
+      if (el) {
+        clearInterval(interval);
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({
+          behavior: prefersReduced ? 'auto' : 'smooth',
+          block: 'center'
+        });
+        el.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50/50', 'transition-all', 'duration-500');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50/50');
+        }, 2000);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        // If focus item not found (already handled or invalid), quietly ignore without error
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
   }, [focusId, activeTab, loading]);
 
   const handleCancel = async (reason) => {

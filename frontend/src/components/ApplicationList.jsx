@@ -75,7 +75,7 @@ export default function ApplicationList({ campaignId, onStatusChange, refreshKey
         emptyText="No applications submitted for this campaign yet."
         headers={['Creator', 'Pitch', 'Date', 'Status', 'Actions']}
         renderCard={(app) => (
-          <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3">
+          <div id={`item-${app._id}`} className="p-4 rounded-xl border border-gray-200 bg-white space-y-3">
             <div className="flex justify-between items-start gap-2">
               <div>
                 <strong className="text-gray-900 text-sm block">{app.creator?.name}</strong>
@@ -111,7 +111,7 @@ export default function ApplicationList({ campaignId, onStatusChange, refreshKey
           </div>
         )}
         renderRow={(app) => (
-          <tr className="hover:bg-gray-50 text-xs">
+          <tr id={`item-${app._id}`} className="hover:bg-gray-50 text-xs">
             <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{app.creator?.name}</td>
             <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{app.pitch || 'None'}</td>
             <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateIST(app.createdAt)}</td>

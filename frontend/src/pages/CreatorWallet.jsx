@@ -38,6 +38,7 @@ export default function CreatorWallet() {
   const [statusBanner, setStatusBanner] = useState(null);
 
   const prevActiveRef = useRef(null);
+  const handledRetryRef = useRef(null);
 
   // Support deep link ?retry=<withdrawalId>
   const retryId = searchParams.get('retry');
@@ -54,21 +55,46 @@ export default function CreatorWallet() {
     fetchWithdrawals();
   }, [withdrawalPage]);
 
-  // Handle retry deep link
+  // Handle retry deep link (?retry=<withdrawalId>)
   useEffect(() => {
-    if (retryId) {
-      api.get(`/withdrawals/${retryId}`)
-        .then((res) => {
-          const w = res.data;
-          setModalInitialAmount(w.amountPaise);
-          setModalInitialUpi(w.payoutDestination?.upiId || '');
-          setIsModalOpen(true);
-        })
-        .catch(() => {
-          // If not found, ignore
-        });
-    }
-  }, [retryId]);
+    if (!retryId || handledRetryRef.current === retryId) return;
+    handledRetryRef.current = retryId;
+
+    const executeRetry = async () => {
+      try {
+        const [wRes, walletRes] = await Promise.all([
+          api.get(`/withdrawals/${retryId}`),
+          wallet ? Promise.resolve({ data: wallet }) : api.get('/wallet')
+        ]);
+        const w = wRes.data;
+        const currentWallet = walletRes.data;
+
+        // If the withdrawal does not belong to user or is not failed, ignore quietly
+        if (w.status !== 'failed') {
+          clearRetryParam();
+          return;
+        }
+
+        // Cap amount to current available balance
+        const available = currentWallet?.balancePaise ?? 0;
+        const cappedAmount = Math.min(w.amountPaise, available);
+
+        // Creator's last UPI ID (unmasked from GET /api/wallet)
+        const unmaskedUpi = currentWallet?.lastUpiId || w.payoutDestination?.upiId || '';
+
+        setModalInitialAmount(cappedAmount);
+        setModalInitialUpi(unmaskedUpi);
+        setIsModalOpen(true);
+
+        clearRetryParam();
+      } catch {
+        // If not found or unauthorized, ignore quietly
+        clearRetryParam();
+      }
+    };
+
+    executeRetry();
+  }, [retryId, wallet]);
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -221,8 +247,8 @@ export default function CreatorWallet() {
   };
 
   const clearRetryParam = () => {
-    if (retryId) {
-      const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(window.location.search);
+    if (next.has('retry')) {
       next.delete('retry');
       setSearchParams(next, { replace: true });
     }
